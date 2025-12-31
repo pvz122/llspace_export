@@ -1,0 +1,21 @@
+name: Build with PyInstaller
+on: 
+  release:
+    types: [created]
+jobs:
+  pyinstaller-build:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: PyInstaller Action
+        uses: Martin005/pyinstaller-action@v1.2.0
+        with:
+          python_ver: '3.12'
+          spec: 'main.py'
+          requirements: 'requirements.txt'
+          upload_exe_with_name: 'llspace-exporter'
+          options: --onefile, --windowed, --name "llspace-exporter"
+
+        
