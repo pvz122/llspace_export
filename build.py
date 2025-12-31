@@ -16,16 +16,7 @@ def build():
         "--windowed",
         "--name", "llspace-exporter",
         "--clean",
-        # 包含 src 模块
         "--paths", ".",
-        # 显式添加 tkinter 路径
-        "--paths", "/Users/pvz122/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12",
-        "--paths", "/Users/pvz122/.local/share/uv/python/cpython-3.12.8-macos-aarch64-none/lib/python3.12/lib-dynload",
-        # 强制包含 tkinter 相关模块
-        "--hidden-import", "tkinter",
-        "--hidden-import", "tkinter.ttk",
-        "--hidden-import", "tkinter.messagebox",
-        "--hidden-import", "tkinter.filedialog",
         "main.py"
     ]
 
