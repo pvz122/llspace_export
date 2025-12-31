@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: PyInstaller Action
-        uses: Martin005/pyinstaller-action@v1.2.0
+        uses: sayyid5416/pyinstaller@v1.8.0
         with:
           python_ver: '3.12'
           spec: 'main.py'
@@ -19,4 +19,4 @@ jobs:
           upload_exe_with_name: 'llspace-exporter'
           options: --onefile, --windowed, --name "llspace-exporter"
 
-        
+
