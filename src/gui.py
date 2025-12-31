@@ -11,7 +11,6 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.title("llspace 导出工具")
-        self.root.geometry("600x600")
         
         self.client = LLSpaceClient()
         self.packages = []
@@ -142,10 +141,12 @@ class App:
             self.login_frame.pack(fill=tk.BOTH, expand=True)
             self.username_var.set("")
             self.password_var.set("")
+            self.root.geometry("")
             
     def show_main_view(self, refresh_packages=True):
         self.login_frame.pack_forget()
         self.main_frame.pack(fill=tk.BOTH, expand=True)
+        self.root.geometry("")
         
         user_name = self.client.user_info.get("name", "用户")
         self.user_info_label.config(text=f"欢迎, {user_name}")
@@ -227,6 +228,7 @@ class App:
 
         self.main_frame.pack_forget()
         self.progress_frame.pack(fill=tk.BOTH, expand=True)
+        self.root.geometry("")
         
         threading.Thread(target=self.run_export_task, args=(selected_packages, export_path), daemon=True).start()
 
@@ -270,3 +272,4 @@ class App:
         messagebox.showinfo("完成", f"导出完成！成功: {success_count}/{total}")
         self.progress_frame.pack_forget()
         self.main_frame.pack(fill=tk.BOTH, expand=True)
+        self.root.geometry("")

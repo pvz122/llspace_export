@@ -36,7 +36,7 @@ def fix_macos_tk():
             print(f"警告: 设置 Tcl/Tk 路径失败: {e}")
 
 def main():
-    os.chdir(user_downloads_dir)
+    os.chdir(user_downloads_dir())
     setup_logging()
     fix_macos_tk()
     
