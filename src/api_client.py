@@ -1,5 +1,6 @@
 import requests
 import logging
+import json
 from .config import API_BASE_URL
 from .utils import generate_headers
 
@@ -24,6 +25,8 @@ class LLSpaceClient:
             if result.get("code") == 0:
                 self.token = result["user"]["authentication_token"]
                 self.user_info = result["user"]
+                # print(f"登录响应数据: {json.dumps(result, ensure_ascii=False, indent=2)}")
+                logging.info(f"用户 {account} 登录成功。")
                 return True, None
             else:
                 return False, result.get("message", "未知错误")
@@ -41,6 +44,7 @@ class LLSpaceClient:
             result = resp.json()
             
             if result.get("code") == 0:
+                # print(f"卡片列表数据: {json.dumps(result, ensure_ascii=False, indent=2)}")
                 return result.get("pg", [])
             else:
                 logging.error(f"获取卡包列表错误: {result.get('message')}")
@@ -60,6 +64,7 @@ class LLSpaceClient:
             result = resp.json()
             
             if result.get("code") == 0:
+                # print(f"卡包列表数据: {json.dumps(result, ensure_ascii=False, indent=2)}")
                 return result.get("cards", [])
             else:
                 logging.error(f"获取目录错误: {result.get('message')}")
@@ -79,6 +84,7 @@ class LLSpaceClient:
             result = resp.json()
             
             if result.get("code") == 0:
+                # print(f"卡片数据: {json.dumps(result, ensure_ascii=False, indent=2)}")
                 return result.get("card", {})
             else:
                 logging.error(f"获取卡片详情错误: {result.get('message')}")

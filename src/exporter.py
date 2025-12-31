@@ -29,6 +29,8 @@ class Exporter:
         os.makedirs(base_dir, exist_ok=True)
         images_dir = os.path.join(base_dir, "images")
         os.makedirs(images_dir, exist_ok=True)
+        media_dir = os.path.join(base_dir, "media")
+        os.makedirs(media_dir, exist_ok=True)
         web_dir = os.path.join(base_dir, "web")
         os.makedirs(web_dir, exist_ok=True)
 
@@ -54,14 +56,26 @@ class Exporter:
                 logging.warning(f"由于缺少详情，跳过卡片 {card_id}。")
                 continue
                 
-            # 处理卡片数据
+            # 提取数据 (适配不同卡片类型)
+            card_data_obj = detail.get("data", {})
+            card_share_obj = detail.get("share", {})
+            
+            card_title = detail.get("title") or card_data_obj.get("title") or title
+            created_date = detail.get("created_date") or card_data_obj.get("created_date") or ""
+            created_int = detail.get("created_int") or card_data_obj.get("created_int") or 0
+            description = detail.get("description") or card_data_obj.get("content") or card_data_obj.get("short_des") or ""
+            cover_url = detail.get("cover_url") or card_data_obj.get("cover_url") or ""
+            web_url = detail.get("url") or card_share_obj.get("share_url") or ""
+            sound_url = card_data_obj.get("sound_url") or ""
+
             card_data = {
-                "title": detail.get("title", title),
-                "created_date": detail.get("created_date", ""),
-                "created_int": detail.get("created_int", 0),
-                "description": detail.get("description", ""),
-                "cover_url": detail.get("cover_url", ""),
-                "url": detail.get("url", ""),
+                "title": card_title,
+                "created_date": created_date,
+                "created_int": created_int,
+                "description": description,
+                "cover_url": cover_url,
+                "url": web_url,
+                "sound_url": sound_url,
                 "id": card_id
             }
             
@@ -74,6 +88,16 @@ class Exporter:
                 card_data["local_cover"] = f"images/{cover_filename}"
             else:
                 card_data["local_cover"] = None
+
+            # 下载音频
+            if card_data["sound_url"]:
+                ext = os.path.splitext(urlparse(card_data["sound_url"]).path)[1] or ".m4a"
+                sound_filename = f"audio_{card_id}{ext}"
+                sound_path = os.path.join(media_dir, sound_filename)
+                download_file(card_data["sound_url"], sound_path)
+                card_data["local_sound"] = f"media/{sound_filename}"
+            else:
+                card_data["local_sound"] = None
 
             # 处理网页快照
             if card_data["url"]:
@@ -156,7 +180,12 @@ class Exporter:
                 f.write(f"**日期:** {card['created_date']}\n\n")
                 if card['local_cover']:
                     f.write(f"![封面]({card['local_cover']})\n\n")
+                
+                if card['local_sound']:
+                    f.write(f"<audio controls src=\"{card['local_sound']}\"></audio>\n\n")
+                    
                 f.write(f"{card['description']}\n\n")
+                
                 if card['local_web']:
                     f.write(f"[查看快照]({card['local_web']})\n\n")
                 f.write("---\n\n")
@@ -172,6 +201,7 @@ class Exporter:
             .card {{ border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; }}
             .card img {{ max-width: 200px; display: block; margin-bottom: 10px; }}
             .meta {{ color: #666; font-size: 0.9em; }}
+            audio {{ display: block; margin-bottom: 10px; width: 100%; }}
         </style>
         </head>
         <body>
@@ -183,6 +213,8 @@ class Exporter:
             html += f'<div class="meta">{card["created_date"]}</div>'
             if card['local_cover']:
                 html += f'<img src="{card["local_cover"]}">'
+            if card['local_sound']:
+                html += f'<audio controls src="{card["local_sound"]}"></audio>'
             html += f'<p>{card["description"].replace(chr(10), "<br>")}</p>'
             if card['local_web']:
                 html += f'<a href="{card["local_web"]}" target="_blank">查看快照</a>'

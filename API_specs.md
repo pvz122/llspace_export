@@ -486,6 +486,8 @@ API 服务器为 `https://api.llspace.com`
 
 - 参数：form - `long card_id`, `long from_pg_id`
 - 返回值：
+
+一般卡片：
 ```json
 {
     "code": 0,
@@ -533,5 +535,170 @@ API 服务器为 `https://api.llspace.com`
             "chained_url": ""
         }
     }
+}
+```
+
+声音卡：
+```json
+{
+  "code": 0,
+  "unread": 0,
+  "card": {
+    "id": 15642312,
+    "card_cat": 60,
+    "owner": {
+      "user_id": 1270700,
+      "name": "Pierre",
+      "avatar_url": "https://assets.llspace.com/avatars/41/2c/1363ac/normal-25c734af8e2e6243c840f0a151ddf0fd.jpg",
+      "gender": 1,
+      "black_property": 1
+    },
+    "share": {
+      "share_title": "声音卡",
+      "share_des": "Pierre 在平行世界创作了一张声音卡，等待你的倾听。",
+      "share_url": "https://www.llspace.com/v/g29b5e20",
+      "share_photo": "https://imagenew.llspace.com/card_covers/67/48/eeaec8/retina-8239ee0275fa057f97cdd44ca542a523.jpg"
+    },
+    "data": {
+      "title": "声音卡",
+      "created_date": "2025.12.31",
+      "collect_property": 1,
+      "public_status": 0,
+      "stars": 0,
+      "cover_url": "https://imagenew.llspace.com/card_covers/67/48/eeaec8/retina-8239ee0275fa057f97cdd44ca542a523.jpg",
+      "sound_url": "https://imagenew.llspace.com/voices/67/48/eeaec8/5d8f4a9f8f9366ea18c5dcecbe824c5c.m4a",
+      "sound_duration": 5902,
+      "theme_color": "2F2F2F",
+      "created_int": 1767196153,
+      "fav_num": 0
+    },
+    "owner_package": {
+      "category": 1,
+      "pg_id": 6192686,
+      "pg_name": "摘抄",
+      "pg_type": -1,
+      "cover_url": "https://imagenew.llspace.com/pg_covers/27/2e/5e7e2e/09dd3abd0921af8656fd9f807315a15c8544.jpg",
+      "tidy_flag": 2,
+      "creator_id": 1270700,
+      "status": 2,
+      "event_type": 1,
+      "chained_url": ""
+    },
+    "user": {
+      "stars": 0,
+      "pg_id": 6192686
+    },
+    "b_pgs": []
+  }
+}
+```
+
+竖文卡：
+```json
+{
+  "code": 0,
+  "unread": 0,
+  "card": {
+    "id": 15642309,
+    "card_cat": 50,
+    "owner": {
+      "user_id": 1270700,
+      "name": "Pierre",
+      "avatar_url": "https://assets.llspace.com/avatars/41/2c/1363ac/normal-25c734af8e2e6243c840f0a151ddf0fd.jpg",
+      "gender": 1,
+      "black_property": 1
+    },
+    "share": {
+      "share_title": "竖文卡",
+      "share_des": "",
+      "share_url": "https://www.llspace.com/v/x6483804",
+      "share_photo": ""
+    },
+    "data": {
+      "title": "竖文卡",
+      "content": "我们\n来到\n宇宙",
+      "created_date": "2025.12.31",
+      "collect_property": 1,
+      "public_status": 0,
+      "stars": 0,
+      "cover_url": "",
+      "theme_category": 1,
+      "created_int": 1767196081,
+      "short_des": "我们\n...",
+      "fav_num": 0
+    },
+    "owner_package": {
+      "category": 1,
+      "pg_id": 6192686,
+      "pg_name": "摘抄",
+      "pg_type": -1,
+      "cover_url": "https://imagenew.llspace.com/pg_covers/27/2e/5e7e2e/09dd3abd0921af8656fd9f807315a15c8544.jpg",
+      "tidy_flag": 2,
+      "creator_id": 1270700,
+      "status": 2,
+      "event_type": 1,
+      "chained_url": ""
+    },
+    "user": {
+      "stars": 0,
+      "pg_id": 6192686
+    },
+    "b_pgs": []
+  }
+}
+```
+
+    海报卡：
+```json
+{
+  "code": 0,
+  "unread": 0,
+  "card": {
+    "id": 15642308,
+    "card_cat": 51,
+    "owner": {
+      "user_id": 1270700,
+      "name": "Pierre",
+      "avatar_url": "https://assets.llspace.com/avatars/41/2c/1363ac/normal-25c734af8e2e6243c840f0a151ddf0fd.jpg",
+      "gender": 1,
+      "black_property": 1
+    },
+    "share": {
+      "share_title": "海报",
+      "share_des": "",
+      "share_url": "https://www.llspace.com/v/q03feb37",
+      "share_photo": ""
+    },
+    "data": {
+      "title": "海报",
+      "content": "海报卡的样子",
+      "created_date": "2025.12.31",
+      "collect_property": 1,
+      "public_status": 0,
+      "stars": 0,
+      "cover_url": "https://imagenew.llspace.com/card_covers/63/44/eeaec4/retina-e916c1738fd8c17916812f3d17ba86d0.jpg",
+      "theme_category": 1,
+      "created_int": 1767196052,
+      "short_des": "海报卡的样子",
+      "fav_num": 0
+    },
+    "owner_package": {
+      "category": 1,
+      "pg_id": 6192686,
+      "pg_name": "摘抄",
+      "pg_type": -1,
+      "cover_url": "https://imagenew.llspace.com/pg_covers/27/2e/5e7e2e/09dd3abd0921af8656fd9f807315a15c8544.jpg",
+      "tidy_flag": 2,
+      "creator_id": 1270700,
+      "status": 2,
+      "event_type": 1,
+      "chained_url": ""
+    },
+    "user": {
+      "stars": 0,
+      "pg_id": 6192686
+    },
+    "b_pgs": []
+  }
 }
 ```
