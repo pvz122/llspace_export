@@ -17,9 +17,16 @@ def fix_macos_tk():
     # 修复 macOS 上 uv/standalone python 的 Tcl/Tk 问题
     if sys.platform == 'darwin':
         try:
-            base_lib = os.path.join(sys.base_prefix, 'lib')
+            if getattr(sys, 'frozen', False):
+                # PyInstaller 打包后的路径
+                base_lib = os.path.join(sys._MEIPASS, 'lib')
+            else:
+                # 开发环境路径
+                base_lib = os.path.join(sys.base_prefix, 'lib')
+                
             tcl_path = os.path.join(base_lib, 'tcl8.6')
             tk_path = os.path.join(base_lib, 'tk8.6')
+            
             if os.path.exists(tcl_path) and os.path.exists(tk_path):
                 os.environ.setdefault('TCL_LIBRARY', tcl_path)
                 os.environ.setdefault('TK_LIBRARY', tk_path)
