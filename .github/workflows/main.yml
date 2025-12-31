@@ -16,7 +16,7 @@ jobs:
           python_ver: '3.12'
           spec: 'main.py'
           requirements: 'requirements.txt'
-          upload_exe_with_name: 'llspace-exporter'
+          upload_exe_with_name: 'llspace-exporter-${{ matrix.os }}'
           options: --onefile, --windowed, --name "llspace-exporter"
 
 
