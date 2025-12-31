@@ -4,10 +4,8 @@ import threading
 import os
 import json
 import logging
-from PIL import Image, ImageTk
 from .api_client import LLSpaceClient
 from .exporter import Exporter
-from .utils import download_file
 
 class App:
     def __init__(self, root):
@@ -18,7 +16,6 @@ class App:
         self.client = LLSpaceClient()
         self.packages = []
         self.package_vars = {}
-        self.package_images = {}
         
         self.setup_ui()
         self.check_auto_login()
@@ -186,7 +183,6 @@ class App:
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
         
         self.package_vars = {}
-        self.package_images = {}
         
         for pkg in self.packages:
             pg_id = pkg.get("pg_id")
@@ -201,65 +197,8 @@ class App:
             chk = ttk.Checkbutton(item_frame, variable=var)
             chk.pack(side="left")
             
-            # Image Label (Placeholder)
-            img_label = ttk.Label(item_frame, text="[加载中]", width=10, anchor="center", relief="solid")
-            img_label.pack(side="left", padx=10)
-            
             # Name Label
             ttk.Label(item_frame, text=pg_name, font=("Arial", 12)).pack(side="left", padx=5)
-            
-            # Store reference to update image later
-            pkg['_ui_label'] = img_label
-            
-        # Start thread to load images
-        threading.Thread(target=self.load_images, daemon=True).start()
-
-    def load_images(self):
-        cache_dir = "cache/covers"
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        for pkg in self.packages:
-            cover_url = pkg.get("cover_url")
-            pg_id = pkg.get("pg_id")
-            if not cover_url:
-                continue
-                
-            try:
-                filename = f"{pg_id}.jpg"
-                filepath = os.path.join(cache_dir, filename)
-                
-                if not os.path.exists(filepath):
-                    download_file(cover_url, filepath)
-                    
-                # Update UI in main thread by passing filepath
-                self.root.after(0, self.update_image_label, pkg, filepath)
-                
-            except Exception as e:
-                logging.error(f"Failed to load cover for {pg_id}: {e}")
-                self.root.after(0, self.update_image_label_error, pkg)
-
-    def update_image_label(self, pkg, filepath):
-        try:
-            # Load and resize in main thread to avoid threading issues with PIL/Tkinter
-            image = Image.open(filepath)
-            aspect_ratio = image.width / image.height
-            new_height = 60
-            new_width = int(new_height * aspect_ratio)
-            image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
-            
-            photo = ImageTk.PhotoImage(image)
-            label = pkg.get('_ui_label')
-            if label and label.winfo_exists():
-                label.configure(image=photo, text="", width=0, relief="flat")
-                self.package_images[pkg['pg_id']] = photo
-        except Exception as e:
-            logging.error(f"Failed to create PhotoImage for {pkg.get('pg_id')}: {e}")
-            self.update_image_label_error(pkg)
-
-    def update_image_label_error(self, pkg):
-        label = pkg.get('_ui_label')
-        if label and label.winfo_exists():
-            label.configure(text="[无封面]")
 
     def start_export(self):
         selected_packages = [p for p in self.packages if self.package_vars[p['pg_id']].get()]
