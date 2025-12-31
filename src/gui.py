@@ -146,7 +146,7 @@ class App:
     def show_main_view(self, refresh_packages=True):
         self.login_frame.pack_forget()
         self.main_frame.pack(fill=tk.BOTH, expand=True)
-        self.root.geometry("")
+        self.root.geometry("400x800")
         
         user_name = self.client.user_info.get("name", "用户")
         self.user_info_label.config(text=f"欢迎, {user_name}")
@@ -228,7 +228,7 @@ class App:
 
         self.main_frame.pack_forget()
         self.progress_frame.pack(fill=tk.BOTH, expand=True)
-        self.root.geometry("")
+        self.root.geometry("600x200")
         
         threading.Thread(target=self.run_export_task, args=(selected_packages, export_path), daemon=True).start()
 
@@ -272,4 +272,4 @@ class App:
         messagebox.showinfo("完成", f"导出完成！成功: {success_count}/{total}")
         self.progress_frame.pack_forget()
         self.main_frame.pack(fill=tk.BOTH, expand=True)
-        self.root.geometry("")
+        self.root.geometry("400x800")
