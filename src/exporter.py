@@ -2,6 +2,7 @@ import os
 import time
 import threading
 import logging
+from datetime import datetime
 import requests
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
@@ -78,8 +79,14 @@ class Exporter:
 
             exported_cards.append(card_data)
             
-        # 按创建日期排序 (假设格式为 YYYY.MM.DD)
-        exported_cards.sort(key=lambda x: x["created_date"])
+        # 按创建日期排序 (格式为 YYYY.MM.DD)
+        try:
+            exported_cards.sort(key=lambda x: datetime.strptime(x["created_date"], "%Y.%m.%d"), reverse=True)
+        except ValueError:
+            # 如果日期格式解析失败，回退到字符串排序
+            logging.warning("Date parsing failed, falling back to string sort")
+            # 倒序排列：最新的在最前面
+        exported_cards.sort(key=lambda x: x["created_date"], reverse=True)
         
         # 生成 Markdown
         md_path = os.path.join(base_dir, f"{safe_pg_name}.md")
