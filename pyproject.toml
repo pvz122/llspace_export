@@ -1,0 +1,10 @@
+[project]
+name = "llspace-exporter"
+version = "0.1.0"
+description = "Export user card content from llspace platform"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "requests>=2.31.0",
+    "beautifulsoup4>=4.12.0",
+]
