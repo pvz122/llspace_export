@@ -15,12 +15,16 @@ class Exporter:
         self.update_callback = update_callback
         self.stop_event = threading.Event()
 
-    def run(self, package):
+    def run(self, package, output_root=None):
         pg_name = package.get("pg_name", "未知")
         pg_id = package.get("pg_id")
         safe_pg_name = safe_filename(pg_name)
         timestamp = int(time.time())
-        base_dir = f"{safe_pg_name}_{timestamp}"
+        
+        if output_root is None:
+            output_root = os.getcwd()
+            
+        base_dir = os.path.join(output_root, f"{safe_pg_name}_{timestamp}")
         
         os.makedirs(base_dir, exist_ok=True)
         images_dir = os.path.join(base_dir, "images")

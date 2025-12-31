@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import threading
 import os
 import json
@@ -57,6 +57,14 @@ class App:
         self.list_container = ttk.Frame(self.main_frame)
         self.list_container.pack(fill=tk.BOTH, expand=True, pady=5)
         
+        # 导出路径选择
+        path_frame = ttk.Frame(self.main_frame)
+        path_frame.pack(fill=tk.X, pady=5)
+        ttk.Label(path_frame, text="导出路径:").pack(side=tk.LEFT)
+        self.path_var = tk.StringVar(value=os.getcwd())
+        ttk.Entry(path_frame, textvariable=self.path_var).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
+        ttk.Button(path_frame, text="选择...", command=self.select_path).pack(side=tk.LEFT)
+
         # 导出按钮
         ttk.Button(self.main_frame, text="导出选中项", command=self.start_export).pack(pady=10)
         
@@ -200,6 +208,11 @@ class App:
             # Name Label
             ttk.Label(item_frame, text=pg_name, font=("Arial", 12)).pack(side="left", padx=5)
 
+    def select_path(self):
+        path = filedialog.askdirectory()
+        if path:
+            self.path_var.set(path)
+
     def start_export(self):
         selected_packages = [p for p in self.packages if self.package_vars[p['pg_id']].get()]
         
@@ -207,12 +220,17 @@ class App:
             messagebox.showwarning("提示", "请至少选择一个卡包")
             return
             
+        export_path = self.path_var.get()
+        if not export_path:
+            messagebox.showwarning("提示", "请选择导出路径")
+            return
+
         self.main_frame.pack_forget()
         self.progress_frame.pack(fill=tk.BOTH, expand=True)
         
-        threading.Thread(target=self.run_export_task, args=(selected_packages,), daemon=True).start()
+        threading.Thread(target=self.run_export_task, args=(selected_packages, export_path), daemon=True).start()
 
-    def run_export_task(self, packages):
+    def run_export_task(self, packages, export_path):
         total_pkgs = len(packages)
         success_count = 0
         
@@ -225,7 +243,7 @@ class App:
             
             exporter = Exporter(self.client, self.update_progress)
             try:
-                output_dir, count = exporter.run(pkg)
+                output_dir, count = exporter.run(pkg, export_path)
                 logging.info(f"Exported {pg_name} to {output_dir}")
                 success_count += 1
             except Exception as e:
