@@ -46,11 +46,16 @@ jobs:
           # Windows
           cp artifacts/llspace-exporter-windows-latest/llspace-exporter.exe release-binaries/llspace-exporter_win.exe
 
+          chmod +x release-binaries/llspace-exporter_mac
+          chmod +x release-binaries/llspace-exporter_linux
+          chmod +x release-binaries/llspace-exporter_win.exe
+
           ls -l release-binaries/
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: release-binaries/*
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
