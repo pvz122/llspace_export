@@ -1,8 +1,12 @@
 name: Build with PyInstaller
-on: 
-  release:
-    types: [created]
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - '[0-9]+.[0-9]+.[0-9]+'
   workflow_dispatch:
+
 jobs:
   pyinstaller-build:
     strategy:
@@ -29,14 +33,24 @@ jobs:
         with:
           path: artifacts/
 
-      - name: List downloaded artifacts (debug)
+      - name: Prepare renamed binaries
         run: |
-          ls -R artifacts/
+          mkdir -p release-binaries
+
+          # macOS
+          cp artifacts/llspace-exporter-macos-latest/llspace-exporter release-binaries/llspace-exporter_mac
+
+          # Linux
+          cp artifacts/llspace-exporter-ubuntu-latest/llspace-exporter release-binaries/llspace-exporter_linux
+
+          # Windows
+          cp artifacts/llspace-exporter-windows-latest/llspace-exporter.exe release-binaries/llspace-exporter_win.exe
+
+          ls -l release-binaries/
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/*/*
+          files: release-binaries/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
