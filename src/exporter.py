@@ -159,6 +159,7 @@ class Exporter:
         html = f"""
         <!DOCTYPE html>
         <html>
+        <meta charset="utf-8"/>
         <head><title>{pg_name} 索引</title>
         <style>
             body {{ font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}

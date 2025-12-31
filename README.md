@@ -18,7 +18,7 @@ A desktop GUI tool to export user card content from the llspace platform.
 
 1. Run the exporter:
    ```bash
-   uv run llspace_exporter.py
+   uv run main.py
    ```
 
 2. Enter your llspace username and password.
