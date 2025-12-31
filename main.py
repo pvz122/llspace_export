@@ -4,11 +4,7 @@ import tkinter as tk
 import logging
 from src.config import LOG_FILE
 from src.gui import App
-
-def set_cwd_to_script_dir():
-    # 将工作目录设置为脚本所在目录
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    os.chdir(script_dir)
+from platformdirs import user_downloads_dir
 
 def setup_logging():
     logging.basicConfig(
@@ -40,7 +36,7 @@ def fix_macos_tk():
             print(f"警告: 设置 Tcl/Tk 路径失败: {e}")
 
 def main():
-    set_cwd_to_script_dir()
+    os.chdir(user_downloads_dir)
     setup_logging()
     fix_macos_tk()
     
