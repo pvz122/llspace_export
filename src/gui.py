@@ -52,6 +52,12 @@ class App:
         
         ttk.Label(self.main_frame, text="选择要导出的卡包:").pack(anchor=tk.W)
         
+        # 全选复选框
+        self.select_all_var = tk.BooleanVar()
+        select_all_frame = ttk.Frame(self.main_frame)
+        select_all_frame.pack(fill=tk.X, pady=5)
+        ttk.Checkbutton(select_all_frame, text="全选", variable=self.select_all_var, command=self.toggle_select_all).pack(side=tk.LEFT)
+        
         # 卡包列表容器
         self.list_container = ttk.Frame(self.main_frame)
         self.list_container.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -193,6 +199,9 @@ class App:
         
         self.package_vars = {}
         
+        # 重置全选复选框
+        self.select_all_var.set(False)
+        
         for pkg in self.packages:
             pg_id = pkg.get("pg_id")
             pg_name = pkg.get("pg_name", "未命名卡包")
@@ -209,6 +218,11 @@ class App:
             # Name Label
             ttk.Label(item_frame, text=pg_name, font=("Arial", 12)).pack(side="left", padx=5)
 
+    def toggle_select_all(self):
+        select_all = self.select_all_var.get()
+        for var in self.package_vars.values():
+            var.set(select_all)
+    
     def select_path(self):
         path = filedialog.askdirectory()
         if path:
