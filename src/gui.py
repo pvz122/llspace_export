@@ -199,6 +199,9 @@ class App:
         
         self.package_vars = {}
         
+        # 重置全选复选框
+        self.select_all_var.set(False)
+        
         for pkg in self.packages:
             pg_id = pkg.get("pg_id")
             pg_name = pkg.get("pg_name", "未命名卡包")
