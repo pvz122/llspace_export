@@ -2,14 +2,13 @@ import os
 import time
 import threading
 import logging
-from datetime import datetime
 import requests
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from .utils import safe_filename, download_file
 from .api_client import LLSpaceClient
 
-class Exporter:
+class CardsExporter:
     def __init__(self, client: LLSpaceClient, update_callback):
         self.client = client
         self.update_callback = update_callback
@@ -197,11 +196,15 @@ class Exporter:
         <meta charset="utf-8"/>
         <head><title>{pg_name} 索引</title>
         <style>
-            body {{ font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
-            .card {{ border: 1px solid #ddd; padding: 15px; margin-bottom: 15px; border-radius: 5px; }}
+            body {{ font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background-color: #242424; color: #e0e0e0; }}
+            h1 {{ color: #ffffff; }}
+            .card {{ background-color: #FFFFFF; padding: 15px; margin-bottom: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }}
+            .card h3 {{ color: #444; margin-top: 0; }}
+            .card p {{ color: #444; }}
             .card img {{ max-width: 200px; display: block; margin-bottom: 10px; }}
-            .meta {{ color: #666; font-size: 0.9em; }}
+            .meta {{ color: #9F9F9F; font-size: 0.9em; margin-bottom: 10px; }}
             audio {{ display: block; margin-bottom: 10px; width: 100%; }}
+            a {{ color: #007bff; text-decoration: none; }}
         </style>
         </head>
         <body>

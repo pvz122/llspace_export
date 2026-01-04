@@ -5,7 +5,7 @@ import os
 import json
 import logging
 from .api_client import LLSpaceClient
-from .exporter import Exporter
+from .cards_exporter import CardsExporter
 from .chat_exporter import ChatExporter
 
 class App:
@@ -288,7 +288,7 @@ class App:
             percent = (i / total_pkgs) * 100
             self.root.after(0, lambda p=percent, n=pg_name, i=i: self.update_main_progress(p, f"正在导出 ({i+1}/{total_pkgs}): {n}"))
             
-            exporter = Exporter(self.client, self.update_sub_progress)
+            exporter = CardsExporter(self.client, self.update_sub_progress)
             try:
                 output_dir, count = exporter.run(pkg, export_path)
                 logging.info(f"Exported {pg_name} to {output_dir}")
