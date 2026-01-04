@@ -62,6 +62,7 @@ class App:
         top_pkg_frame.pack(fill=tk.X, pady=5)
         ttk.Button(top_pkg_frame, text="< 返回主页", command=self.show_home_view).pack(side=tk.LEFT)
         ttk.Label(top_pkg_frame, text="选择要导出的卡包").pack(side=tk.LEFT, padx=20)
+        ttk.Button(top_pkg_frame, text="刷新列表", command=self.refresh_packages).pack(side=tk.RIGHT)
         
         # 全选复选框 (卡包)
         self.pkg_select_all_var = tk.BooleanVar()
@@ -216,11 +217,42 @@ class App:
         self.root.geometry("400x800")
         
         if not self.packages:
-            self.packages = self.client.get_packages()
-            self.create_package_list()
+            self.load_packages()
         else:
             # 如果已有数据，也刷新一下列表UI以防万一
             self.create_package_list()
+
+    def load_packages(self):
+        # 尝试从缓存加载
+        cache_file = "cache/packages.json"
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding='utf-8') as f:
+                    self.packages = json.load(f)
+                self.create_package_list()
+                return
+            except Exception as e:
+                logging.error(f"Failed to load cached packages: {e}")
+        
+        # 如果没有缓存，刷新
+        self.refresh_packages()
+
+    def refresh_packages(self):
+        threading.Thread(target=self._fetch_packages_thread, daemon=True).start()
+
+    def _fetch_packages_thread(self):
+        self.root.after(0, lambda: self.root.title("正在获取卡包列表..."))
+        
+        pkgs = self.client.get_packages()
+        if pkgs:
+            self.packages = pkgs
+            # 缓存
+            os.makedirs("cache", exist_ok=True)
+            with open("cache/packages.json", "w", encoding='utf-8') as f:
+                json.dump(self.packages, f, ensure_ascii=False, indent=2)
+        
+        self.root.after(0, lambda: self.root.title("llspace 导出工具"))
+        self.root.after(0, self.create_package_list)
 
     def create_package_list(self):
         self._create_list_ui(self.pkg_list_container, self.packages, self.package_vars, "pg_id", "pg_name")
