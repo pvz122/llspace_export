@@ -106,6 +106,35 @@ class ChatExporter:
         text = new_msg.get("text", "")
         scheme = new_msg.get("scheme", "")
         
+        # 处理头像
+        avatar_url = new_msg.get("avatar")
+        if not avatar_url and isinstance(new_msg.get("sender"), dict):
+            avatar_url = new_msg.get("sender").get("avatar")
+            
+        if avatar_url:
+            try:
+                # 简单的文件名生成
+                ext = os.path.splitext(urlparse(avatar_url).path)[1] or ".jpg"
+                # 使用 URL 的 hash 或其他唯一标识作为文件名，避免重复下载
+                # 这里简单使用 URL 的最后一部分，如果太长则截断
+                filename = safe_filename(os.path.basename(urlparse(avatar_url).path))
+                if not filename:
+                    filename = f"avatar_{int(time.time())}"
+                if len(filename) > 50:
+                    filename = filename[-50:]
+                if not filename.endswith(ext):
+                    filename += ext
+                    
+                local_path = os.path.join(cards_dir, filename)
+                
+                # 检查文件是否存在，不存在则下载
+                if not os.path.exists(local_path):
+                    download_file(avatar_url, local_path)
+                    
+                new_msg["local_avatar"] = f"cards/{filename}"
+            except Exception as e:
+                logging.error(f"下载头像失败 {avatar_url}: {e}")
+        
         # 检查是否是卡片链接
         # 格式: "scheme": "llspace://card/3397076?card_cat=1"
         # 且 text 中含有 <a>...</a> (根据需求描述)
@@ -242,12 +271,28 @@ class ChatExporter:
             <style>
                 body {{ background-color: #181818; color: #e0e0e0; font-family: sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }}
                 .header {{ text-align: center; margin-bottom: 20px; border-bottom: 1px solid #333; padding-bottom: 10px; }}
-                .message-container {{ display: flex; flex-direction: column; gap: 15px; }}
-                .message {{ max-width: 70%; padding: 10px 15px; border-radius: 10px; position: relative; word-wrap: break-word; }}
-                .message.me {{ align_self: flex-end; background-color: #FFCA01; color: #000000; text-align: right; }}
-                .message.other {{ align_self: flex-start; background-color: #242424; color: #FFFFFF; text-align: left; }}
-                .time {{ font-size: 0.8em; color: #888; margin-bottom: 5px; text-align: center; width: 100%; }}
-                .sender {{ font-size: 0.8em; margin-bottom: 2px; opacity: 0.7; }}
+                .message-container {{ display: flex; flex-direction: column; gap: 20px; }}
+                
+                .message-row {{ display: flex; align_items: flex-start; gap: 10px; }}
+                .message-row.me {{ flex-direction: row-reverse; }}
+                .message-row.other {{ flex-direction: row; }}
+                
+                .avatar {{ width: 40px; height: 40px; border-radius: 5px; background-color: #333; flex-shrink: 0; overflow: hidden; }}
+                .avatar img {{ width: 100%; height: 100%; object-fit: cover; }}
+                
+                .content-wrapper {{ display: flex; flex-direction: column; max-width: 70%; }}
+                .message-row.me .content-wrapper {{ align_items: flex-end; }}
+                .message-row.other .content-wrapper {{ align_items: flex-start; }}
+                
+                .sender-name {{ font-size: 0.8em; color: #888; margin-bottom: 4px; }}
+                .sender-name.me {{ text-align: right; }}
+                
+                .bubble {{ padding: 10px 15px; border-radius: 8px; position: relative; word-wrap: break-word; display: inline-block; }}
+                .message-row.me .bubble {{ background-color: #FFCA01; color: #000000; text-align: left; }}
+                .message-row.other .bubble {{ background-color: #242424; color: #FFFFFF; text-align: left; }}
+                
+                .time {{ font-size: 0.7em; color: #666; margin-bottom: 5px; text-align: center; width: 100%; }}
+                
                 a {{ color: inherit; text-decoration: underline; }}
             </style>
         </head>
@@ -265,9 +310,10 @@ class ChatExporter:
             timestamp = msg.get("time", 0)
             time_str = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S')
             text = msg.get("text") or ""
+            local_avatar = msg.get("local_avatar")
             
             is_me = (sender_id == my_user_id)
-            msg_class = "me" if is_me else "other"
+            row_class = "me" if is_me else "other"
             
             # 替换卡片链接
             if msg.get("local_card_path"):
@@ -279,11 +325,23 @@ class ChatExporter:
             if text:
                 text = text.replace('\n', '<br>')
             
+            avatar_html = ""
+            if local_avatar:
+                avatar_html = f'<img src="{local_avatar}" alt="{sender_name}">'
+            else:
+                # 默认头像占位
+                avatar_html = f'<div style="width:100%;height:100%;display:flex;align-items:center;justify_content:center;color:#666;">{sender_name[0] if sender_name else "?"}</div>'
+
             html += f"""
                 <div class="time">{time_str}</div>
-                <div class="message {msg_class}">
-                    <div class="sender">{sender_name}</div>
-                    <div class="content">{text}</div>
+                <div class="message-row {row_class}">
+                    <div class="avatar">
+                        {avatar_html}
+                    </div>
+                    <div class="content-wrapper">
+                        <div class="sender-name {row_class}">{sender_name}</div>
+                        <div class="bubble">{text}</div>
+                    </div>
                 </div>
             """
             
