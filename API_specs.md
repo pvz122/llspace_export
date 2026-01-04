@@ -648,7 +648,7 @@ API 服务器为 `https://api.llspace.com`
 }
 ```
 
-    海报卡：
+海报卡：
 ```json
 {
   "code": 0,
@@ -700,5 +700,164 @@ API 服务器为 `https://api.llspace.com`
     },
     "b_pgs": []
   }
+}
+```
+
+### 获取会话列表
+
+`POST /api/1/conversation/list`
+
+- 参数：form - `long divide_id`
+- 接口逻辑： 获取用户的私信会话列表，`divide_id` 用于分页。首次请求时不传`divide_id`，后续请求将上次返回的最后一条会话的`cov_id`作为`divide_id`传入，直到`conversations`列表为空。
+- 返回值：
+
+```
+{
+    "code": 0,
+    "message": "",
+    "hasnext": 1,
+    "conversations": [
+        {
+            "cov_id": 12380310,
+            "last_date_at": 1767440205,
+            "presented_time": "1天前",
+            "is_top": 0,
+            "unread_messages": 0,
+            "last_message": "订阅并附赠 5 颗能量石",
+            "cov_property": 1,
+            "extras": {
+                "user_id": 2115383,
+                "name": "高冷小堡",
+                "avatar_url": "https://assets.llspace.com/avatars/47/37/204737/normal-954f3d14ba93aa3661e9414d64edfd2d.jpg",
+                "gender": 2,
+                "black_property": 1
+            },
+            "cov_title": "高冷小堡",
+            "cov_url": "https://assets.llspace.com/avatars/47/37/204737/normal-954f3d14ba93aa3661e9414d64edfd2d.jpg",
+            "status": 0
+        },
+        {
+            "cov_id": 11992225,
+            "last_date_at": 1767407200,
+            "presented_time": "1天前",
+            "is_top": 0,
+            "unread_messages": 0,
+            "last_message": "！",
+            "cov_property": 1,
+            "extras": {
+                "user_id": 475404,
+                "name": "阿席不德了",
+                "avatar_url": "https://assets.llspace.com/avatars/2b/c/7410c/normal-a436a3ec3814831d4a7e69c63c85428d.jpg",
+                "gender": 2,
+                "black_property": 1
+            },
+            "cov_title": "阿席不德了",
+            "cov_url": "https://assets.llspace.com/avatars/2b/c/7410c/normal-a436a3ec3814831d4a7e69c63c85428d.jpg",
+            "status": 0
+        },
+        {
+            "cov_id": 12375402,
+            "last_date_at": 1767280093,
+            "presented_time": "2天前",
+            "is_top": 0,
+            "unread_messages": 0,
+            "last_message": "好的谢谢",
+            "cov_property": 1,
+            "extras": {
+                "user_id": 2298375,
+                "name": "乌鹊北飞",
+                "avatar_url": "https://assets.llspace.com/avatars/38/7/231207/normal-b5cf18b200d9c77f888573c26363078e.jpg",
+                "gender": 1,
+                "black_property": 1
+            },
+            "cov_title": "乌鹊北飞",
+            "cov_url": "https://assets.llspace.com/avatars/38/7/231207/normal-b5cf18b200d9c77f888573c26363078e.jpg",
+            "status": 0
+        }
+],
+    "unread": 0,
+    "user": {
+        "xxx": "yyy"
+    }
+}
+```
+
+### 获取会话内容
+
+`POST /api/1/messages/messages`
+
+- 参数：form - `long cov_id`, `long divide_id`, `int pageflag`
+- 接口逻辑： 获取指定会话的消息列表，`divide_id` 和 `pageflag` 用于分页。首次请求时不传`divide_id`，`pageflag`传1，后续请求将上次返回的最后一条消息的`id`作为`divide_id`传入，`pageflag`传1，直到`messages`列表为空。
+- 返回值：
+
+```json
+{
+    "code": 0,
+    "message": "",
+    "messages": [
+        {
+            "id": 25536674,
+            "user_id": 1262375,
+            "sender": "泪殇微凉",
+            "text": "订阅并附赠 5 颗能量石",
+            "avatar": "https://assets.llspace.com/avatars/7a/27/134327/normal-3ca8af74f6674c45972a2baaa6e5a8b1.jpg",
+            "time": 1493559995
+        },
+        {
+            "id": 25536692,
+            "user_id": 1270700,
+            "sender": "Pierre",
+            "text": "订阅并附赠 5 颗能量石",
+            "avatar": "https://assets.llspace.com/avatars/41/2c/1363ac/normal-25c734af8e2e6243c840f0a151ddf0fd.jpg",
+            "time": 1493560009
+        },
+        {
+            "id": 25536973,
+            "user_id": 1270700,
+            "sender": "Pierre",
+            "text": "送给<a></a> 1颗能量石 ",
+            "avatar": "https://assets.llspace.com/avatars/41/2c/1363ac/normal-25c734af8e2e6243c840f0a151ddf0fd.jpg",
+            "time": 1493560231,
+            "scheme": "llspace://card/3397076?card_cat=1"
+        },
+        {
+            "id": 25537325,
+            "user_id": 1270700,
+            "sender": "Pierre",
+            "text": "送给<a>love yourself</a> 1颗能量石 ",
+            "avatar": "https://assets.llspace.com/avatars/41/2c/1363ac/normal-25c734af8e2e6243c840f0a151ddf0fd.jpg",
+            "time": 1493560496,
+            "scheme": "llspace://card/3382834?card_cat=1"
+        },
+        {
+            "id": 25537646,
+            "user_id": 1262375,
+            "sender": "泪殇微凉",
+            "text": "送给<a>坚持</a> 1颗能量石 ",
+            "avatar": "https://assets.llspace.com/avatars/7a/27/134327/normal-3ca8af74f6674c45972a2baaa6e5a8b1.jpg",
+            "time": 1493560713,
+            "scheme": "llspace://card/4294001?card_cat=1"
+        }
+    ],
+    "conversation": {
+        "cov_id": 3906297,
+        "last_date_at": 1546404798,
+        "presented_time": "7年前",
+        "is_top": 0,
+        "unread_messages": 0,
+        "last_message": "咱们换地儿说话",
+        "cov_property": 1,
+        "extras": {
+            "user_id": 1262375,
+            "name": "泪殇微凉",
+            "avatar_url": "https://assets.llspace.com/avatars/7a/27/134327/normal-3ca8af74f6674c45972a2baaa6e5a8b1.jpg",
+            "gender": 2,
+            "black_property": 1
+        },
+        "cov_title": "泪殇微凉",
+        "cov_url": "https://assets.llspace.com/avatars/7a/27/134327/normal-3ca8af74f6674c45972a2baaa6e5a8b1.jpg",
+        "status": 0
+    },
+    "unread": 0
 }
 ```
