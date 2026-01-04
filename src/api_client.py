@@ -73,7 +73,7 @@ class LLSpaceClient:
             logging.error(f"获取目录异常: {e}")
             return []
 
-    def get_card_detail(self, card_id, pg_id):
+    def get_card_detail(self, card_id, pg_id=0):
         url = f"{API_BASE_URL}/api/1/cards/detail"
         headers = generate_headers(self.token)
         data = {"card_id": card_id, "from_pg_id": pg_id}
@@ -92,3 +92,49 @@ class LLSpaceClient:
         except Exception as e:
             logging.error(f"获取卡片详情异常: {e}")
             return None
+
+    def get_conversations(self, divide_id=None):
+        url = f"{API_BASE_URL}/api/1/conversation/list"
+        headers = generate_headers(self.token)
+        data = {}
+        if divide_id:
+            data["divide_id"] = divide_id
+            
+        try:
+            resp = requests.post(url, headers=headers, data=data, timeout=10)
+            resp.raise_for_status()
+            result = resp.json()
+            
+            if result.get("code") == 0:
+                return result
+            else:
+                logging.error(f"获取会话列表错误: {result.get('message')}")
+                return None
+        except Exception as e:
+            logging.error(f"获取会话列表异常: {e}")
+            return None
+
+    def get_messages(self, cov_id, divide_id=None, pageflag=1):
+        url = f"{API_BASE_URL}/api/1/messages/messages"
+        headers = generate_headers(self.token)
+        data = {
+            "cov_id": cov_id,
+            "pageflag": pageflag
+        }
+        if divide_id:
+            data["divide_id"] = divide_id
+            
+        try:
+            resp = requests.post(url, headers=headers, data=data, timeout=10)
+            resp.raise_for_status()
+            result = resp.json()
+            
+            if result.get("code") == 0:
+                return result
+            else:
+                logging.error(f"获取消息列表错误: {result.get('message')}")
+                return None
+        except Exception as e:
+            logging.error(f"获取消息列表异常: {e}")
+            return None
+
