@@ -711,7 +711,7 @@ API 服务器为 `https://api.llspace.com`
 - 接口逻辑： 获取用户的私信会话列表，`divide_id` 用于分页。首次请求时不传`divide_id`，后续请求将上次返回的最后一条会话的`cov_id`作为`divide_id`传入，直到`conversations`列表为空。
 - 返回值：
 
-```
+```json
 {
     "code": 0,
     "message": "",
@@ -859,5 +859,87 @@ API 服务器为 `https://api.llspace.com`
         "status": 0
     },
     "unread": 0
+}
+```
+
+### 获取好友卡包列表
+
+`POST /api/1/pg/listById`
+
+- 参数：form - `long u_id`
+- 返回值：
+
+```json
+{
+    "code": 0,
+    "message": "",
+    "pg": [
+        {
+            "category": 1,
+            "pg_id": 3925232,
+            "pg_name": "她的刺",
+            "pg_type": -1,
+            "cover_url": "https://imagenew.llspace.com/pg_covers/2b/70/3be4f0/b060d21cc9f43d4786c425a829a14e102359.jpg",
+            "tidy_flag": 2,
+            "creator_id": 1262375,
+            "status": 1,
+            "event_type": 1,
+            "chained_url": "",
+            "c_num": 12,
+            "image_url": "",
+            "member_count": 1,
+            "permit_status": 2,
+            "notify_status": 2,
+            "accept_status": 2,
+            "text": "也许一个人要走很长的路，\n经历过生命中无数\n突如其来的繁华和苍凉\n才会变得成熟。\n\n——七堇年",
+            "text_align": 2,
+            "share": {
+                "share_title": "《她的刺》",
+                "share_des": "",
+                "share_url": "https://www.llspace.com/g-main-3925232.html",
+                "share_photo": "https://imagenew.llspace.com/pg_covers/2b/70/3be4f0/b060d21cc9f43d4786c425a829a14e102359.jpg"
+            }
+        },
+        {
+            "category": 1,
+            "pg_id": 3686390,
+            "pg_name": "Starry night",
+            "pg_type": -1,
+            "cover_url": "https://imagenew.llspace.com/pg_covers/58/76/383ff6/ee83f1a48f86bf54a6387ad6b2188d819142.jpg",
+            "tidy_flag": 2,
+            "creator_id": 1262375,
+            "status": 1,
+            "event_type": 1,
+            "chained_url": "",
+            "c_num": 5,
+            "image_url": "",
+            "member_count": 1,
+            "permit_status": 2,
+            "notify_status": 2,
+            "accept_status": 2,
+            "text": "\n\n我曾听人说过，\n当你不能够再拥有，\n你唯一可以做的，\n就是令自己不要忘记。\n\n",
+            "text_align": 2,
+            "share": {
+                "share_title": "《Starry night》",
+                "share_des": "",
+                "share_url": "https://www.llspace.com/g-main-3686390.html",
+                "share_photo": "https://imagenew.llspace.com/pg_covers/58/76/383ff6/ee83f1a48f86bf54a6387ad6b2188d819142.jpg"
+            }
+        }
+    ],
+    "black_status": 1,
+    "user": {
+        "avatar_normal_url": "https://assets.llspace.com/avatars/7a/27/134327/normal-3ca8af74f6674c45972a2baaa6e5a8b1.jpg",
+        "avatar_url": "https://assets.llspace.com/avatars/7a/27/134327/normal-3ca8af74f6674c45972a2baaa6e5a8b1.jpg",
+        "description": "This is a description.",
+        "gender": 2,
+        "id": 1262375,
+        "name": "LSWL",
+        "hasFollow": true,
+        "followEnabled": true,
+        "premium": {
+            "premium_status": 0
+        }
+    }
 }
 ```

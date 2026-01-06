@@ -4,9 +4,11 @@ import threading
 import os
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from .api_client import LLSpaceClient
 from .cards_exporter import CardsExporter
 from .chat_exporter import ChatExporter
+from .utils import format_timestamp
 
 class App:
     def __init__(self, root):
@@ -21,6 +23,9 @@ class App:
         
         self.setup_ui()
         self.check_auto_login()
+        
+        # 聊天列表相关的UI应用缓存引用
+        self.chat_row_widgets = {} # cov_id -> {label references}
         
     def setup_ui(self):
         self.main_container = ttk.Frame(self.root, padding="10")
@@ -90,19 +95,31 @@ class App:
         top_chat_frame = ttk.Frame(self.chat_export_frame)
         top_chat_frame.pack(fill=tk.X, pady=5)
         ttk.Button(top_chat_frame, text="< 返回主页", command=self.show_home_view).pack(side=tk.LEFT)
-        ttk.Label(top_chat_frame, text="选择要导出的对话").pack(side=tk.LEFT, padx=20)
         ttk.Button(top_chat_frame, text="刷新列表", command=self.refresh_conversations).pack(side=tk.RIGHT)
         
-        # 全选复选框 (聊天)
+        # 工具栏 (全选 + 筛选)
+        tools_frame = ttk.Frame(self.chat_export_frame)
+        tools_frame.pack(fill=tk.X, pady=5)
+        
+        # 全选
         self.chat_select_all_var = tk.BooleanVar()
-        chat_select_all_frame = ttk.Frame(self.chat_export_frame)
-        chat_select_all_frame.pack(fill=tk.X, pady=5)
-        ttk.Checkbutton(chat_select_all_frame, text="全选", variable=self.chat_select_all_var, command=self.toggle_chat_select_all).pack(side=tk.LEFT)
+        ttk.Checkbutton(tools_frame, text="全选", variable=self.chat_select_all_var, command=self.toggle_chat_select_all).pack(side=tk.LEFT)
+        
+        # 分隔
+        ttk.Separator(tools_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+        
+        # 筛选
+        self.filter_only_follow = tk.BooleanVar(value=False)
+        self.filter_only_resident = tk.BooleanVar(value=False)
+        
+        ttk.Label(tools_frame, text="筛选:").pack(side=tk.LEFT)
+        ttk.Checkbutton(tools_frame, text="仅显示已关注", variable=self.filter_only_follow, command=self.apply_chat_filters).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(tools_frame, text="仅显示居民", variable=self.filter_only_resident, command=self.apply_chat_filters).pack(side=tk.LEFT, padx=5)
         
         # 聊天列表容器
         self.chat_list_container = ttk.Frame(self.chat_export_frame)
         self.chat_list_container.pack(fill=tk.BOTH, expand=True, pady=5)
-        
+
         # 导出路径选择 (聊天)
         chat_path_frame = ttk.Frame(self.chat_export_frame)
         chat_path_frame.pack(fill=tk.X, pady=5)
@@ -304,7 +321,7 @@ class App:
     def show_chat_export_view(self):
         self.hide_all_frames()
         self.chat_export_frame.pack(fill=tk.BOTH, expand=True)
-        self.root.geometry("400x800")
+        self.root.geometry("470x800")
         
         if not self.conversations:
             self.load_conversations()
@@ -348,19 +365,171 @@ class App:
                 break
                 
             divide_id = batch[-1].get("cov_id")
-            
+
         self.conversations = all_covs
         
         # 缓存
-        os.makedirs("cache", exist_ok=True)
-        with open("cache/conversations.json", "w", encoding='utf-8') as f:
-            json.dump(self.conversations, f, ensure_ascii=False, indent=2)
+        self._save_conversations_cache()
             
         self.root.after(0, lambda: self.root.title("llspace 导出工具"))
         self.root.after(0, self.create_chat_list)
+        
+        # 启动后台丰富信息线程
+        threading.Thread(target=self._background_enrich_task, daemon=True).start()
+
+    def _save_conversations_cache(self):
+        os.makedirs("cache", exist_ok=True)
+        with open("cache/conversations.json", "w", encoding='utf-8') as f:
+            json.dump(self.conversations, f, ensure_ascii=False, indent=2)
+
+    def _background_enrich_task(self):
+        """后台线程：逐个获取好友详细信息并更新UI"""
+        updated = False
+        for cov in self.conversations:
+            # 如果已经由于之前的操作有了信息，跳过
+            if "friend_info" in cov:
+                # 即使有缓存，也要更新UI显示状态（从加载中->显示），防止UI重绘后状态丢失
+                self.root.after(0, lambda c=cov: self.update_chat_row_info(c))
+                continue
+                
+            user_id = cov.get("extras", {}).get("user_id")
+            if user_id:
+                u_info = self.client.get_friend_info(user_id)
+                if u_info:
+                    cov["friend_info"] = u_info
+                    updated = True
+                    # 更新UI
+                    self.root.after(0, lambda c=cov: self.update_chat_row_info(c))
+                    
+                    # 为了避免请求过快，稍微sleep一下? 或者直接跑
+                    # time.sleep(0.05) 
+        
+        if updated:
+            self._save_conversations_cache()
+
+
+    def apply_chat_filters(self):
+        self.create_chat_list()
 
     def create_chat_list(self):
-        self._create_list_ui(self.chat_list_container, self.conversations, self.conversation_vars, "cov_id", "cov_title")
+        container = self.chat_list_container
+        # 清除旧内容
+        for widget in container.winfo_children():
+            widget.destroy()
+            
+        # Canvas and Scrollbar
+        canvas = tk.Canvas(container)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # 绑定鼠标滚轮
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        self.conversation_vars.clear()
+        self.chat_row_widgets.clear()
+        
+        # 表头
+        header_frame = ttk.Frame(scrollable_frame)
+        header_frame.pack(fill="x", pady=2)
+        
+        # 使用 grid weight 来分配宽度，或者固定宽度但居中
+        # 简单起见，这里手动调整sticky和column configure
+        
+        header_configs = [
+            (0, "", 3, "w"),
+            (1, "对话名称", 20, "w"), # 名字靠左
+            (2, "最后时间", 16, "center"), # 时间居中
+            (3, "关注状态", 10, "center"), # 状态居中
+            (4, "居民状态", 10, "center")  # 状态居中
+        ]
+        
+        for col, text, width, anchor in header_configs:
+            lbl = ttk.Label(header_frame, text=text, width=width, font=("Arial", 12, "bold"), anchor=anchor)
+            lbl.grid(row=0, column=col, sticky="ew") # 使用 ew 填充并配合 anchor
+
+        ttk.Separator(scrollable_frame, orient='horizontal').pack(fill='x', pady=5)
+        
+        for item in self.conversations:
+            # 过滤逻辑
+            has_friend_info = "friend_info" in item
+            friend_info = item.get("friend_info", {})
+            
+            is_followed = friend_info.get("hasFollow", False) if has_friend_info else False
+            is_resident = (friend_info.get("premium", {}).get("premium_status", 0) != 0) if has_friend_info else False
+            
+            if self.filter_only_follow.get() and not is_followed:
+                continue
+            if self.filter_only_resident.get() and not is_resident:
+                continue
+
+            item_id = item.get("cov_id")
+            cov_title = item.get("cov_title", "未命名")
+            ts = item.get("last_date_at")
+            time_str = format_timestamp(ts) if ts else ""
+            
+            item_frame = ttk.Frame(scrollable_frame)
+            item_frame.pack(fill="x", pady=2)
+            
+            # Checkbox
+            var = tk.BooleanVar()
+            self.conversation_vars[item_id] = var
+            chk = ttk.Checkbutton(item_frame, variable=var)
+            chk.grid(row=0, column=0, padx=(0, 5))
+            
+            # Name
+            ttk.Label(item_frame, text=cov_title, width=20, font=("Arial", 12), anchor="w").grid(row=0, column=1, sticky="w")
+            
+            # Time
+            ttk.Label(item_frame, text=time_str, width=16, font=("Arial", 11), anchor="center").grid(row=0, column=2, sticky="ew")
+            
+            # Status Widgets references
+            follow_text = "已关注" if is_followed else ""
+            # 如果还没加载信息，且不确定（虽然过滤时如果只选已关注，那肯定已加载或者默认False）
+            # 这里如果不确定显示状态，默认显示为空，等加载
+            if not has_friend_info:
+                follow_text = "..."
+                
+            follow_lbl = ttk.Label(item_frame, text=follow_text, width=10, font=("Arial", 10), anchor="center")
+            follow_lbl.grid(row=0, column=3, sticky="ew")
+            
+            resident_text = "居民" if is_resident else ""
+            if not has_friend_info:
+                resident_text = "..."
+                
+            res_lbl = ttk.Label(item_frame, text=resident_text, width=10, font=("Arial", 10), anchor="center")
+            res_lbl.grid(row=0, column=4, sticky="ew")
+            
+            self.chat_row_widgets[item_id] = {
+                "follow_label": follow_lbl,
+                "resident_label": res_lbl
+            }
+
+    def update_chat_row_info(self, item):
+        item_id = item.get("cov_id")
+        if item_id not in self.chat_row_widgets:
+            return
+            
+        widgets = self.chat_row_widgets[item_id]
+        friend_info = item.get("friend_info", {})
+        
+        is_followed = friend_info.get("hasFollow", False)
+        is_resident = friend_info.get("premium", {}).get("premium_status", 0) != 0
+        
+        widgets["follow_label"].config(text="已关注" if is_followed else "")
+        widgets["resident_label"].config(text="居民" if is_resident else "")
 
     def toggle_chat_select_all(self):
         self._toggle_select_all(self.chat_select_all_var, self.conversation_vars)
@@ -412,7 +581,7 @@ class App:
         if path:
             var.set(path)
 
-    def _create_list_ui(self, container, items, vars_dict, id_key, name_key):
+    def _create_list_ui(self, container, items, vars_dict, id_key, name_key_or_func):
         # 清除旧内容
         for widget in container.winfo_children():
             widget.destroy()
@@ -442,7 +611,10 @@ class App:
         
         for item in items:
             item_id = item.get(id_key)
-            item_name = item.get(name_key, f"未命名 ({item_id})")
+            if callable(name_key_or_func):
+                item_name = name_key_or_func(item)
+            else:
+                item_name = item.get(name_key_or_func, f"未命名 ({item_id})")
             
             item_frame = ttk.Frame(scrollable_frame)
             item_frame.pack(fill="x", pady=5, padx=5)

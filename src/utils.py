@@ -49,3 +49,10 @@ def download_file(url: str, dest_path: str):
                 f.write(chunk)
     except Exception as e:
         logging.error(f"下载失败 {url}: {e}")
+
+def format_timestamp(ts: int) -> str:
+    """格式化时间戳为字符串 (YYYY-MM-DD HH:MM)。"""
+    if not ts:
+        return ""
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(ts))
+

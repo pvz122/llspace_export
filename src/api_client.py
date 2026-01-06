@@ -138,3 +138,23 @@ class LLSpaceClient:
             logging.error(f"获取消息列表异常: {e}")
             return None
 
+    def get_friend_info(self, u_id):
+        url = f"{API_BASE_URL}/api/1/pg/listById"
+        headers = generate_headers(self.token)
+        data = {"u_id": u_id}
+        
+        try:
+            resp = requests.post(url, headers=headers, data=data, timeout=10)
+            resp.raise_for_status()
+            result = resp.json()
+            
+            if result.get("code") == 0:
+                return result.get("user")
+            else:
+                logging.error(f"获取好友信息错误: {result.get('message')}")
+                return None
+        except Exception as e:
+            logging.error(f"获取好友信息异常: {e}")
+            return None
+
+
