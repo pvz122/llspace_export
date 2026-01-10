@@ -6,12 +6,11 @@
 
 ### 方式一：下载可执行文件 (推荐)
 
-1.  访问本仓库的 [Releases 页面](https://github.com/pvz122/llspace_export/releases)。
-2.  根据你的操作系统下载对应的可执行文件：
-    *   **Windows**: 下载 `_win.exe` 文件。
-    *   **macOS**: 下载`_mac`二进制文件。
-    *   **Linux**: 下载 `_linux` 二进制文件。
-3.  双击运行下载的文件即可启动程序。（macOS 可能需要在“系统偏好设置”中允许打开未认证的应用）
+1.  访问[下载链接](https://wwbsd.lanzouu.com/i2gap3ftmkni)。
+2.  下载解压后，根据你的操作系统，双击运行对应的可执行文件：
+    *   **Windows**:  `llspace-exporter_win.exe` 。
+    *   **macOS**: `llspace-exporter_mac`。（需要进入“设置-隐私与安全性”，找到下方“已阻止"llspace-exporter_mac"以保护Mac”字样，点击“仍要打开”）
+    *   **Linux**: `llspace-exporter_linux`。
 
 ### 方式二：直接运行源码
 
