@@ -37,11 +37,15 @@ class App:
         
         ttk.Label(self.login_frame, text="用户名:").pack(pady=5)
         self.username_var = tk.StringVar()
-        ttk.Entry(self.login_frame, textvariable=self.username_var).pack(pady=5)
+        username_entry = ttk.Entry(self.login_frame, textvariable=self.username_var)
+        username_entry.pack(pady=5)
+        username_entry.bind("<Return>", lambda event: self.do_login())
         
         ttk.Label(self.login_frame, text="密码:").pack(pady=5)
         self.password_var = tk.StringVar()
-        ttk.Entry(self.login_frame, textvariable=self.password_var, show="*").pack(pady=5)
+        password_entry = ttk.Entry(self.login_frame, textvariable=self.password_var, show="*")
+        password_entry.pack(pady=5)
+        password_entry.bind("<Return>", lambda event: self.do_login())
         
         ttk.Button(self.login_frame, text="登录", command=self.do_login).pack(pady=20)
         
