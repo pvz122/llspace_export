@@ -27,7 +27,7 @@ def generate_headers(token: str = None) -> dict:
         "sign": sign,
         "CLIENT-VERSION": CLIENT_VERSION,
         "PLATFORM": PLATFORM,
-        "User-Agent": "llspace-exporter/1.0"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.3"
     }
     
     if token and token.strip():
