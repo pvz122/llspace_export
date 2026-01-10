@@ -5,11 +5,13 @@ import re
 import logging
 import threading
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse, parse_qs
 import requests
 from bs4 import BeautifulSoup
 from .utils import safe_filename, download_file
 from .api_client import LLSpaceClient
+from .config import MAX_WORKERS
 
 class ChatExporter:
     def __init__(self, client: LLSpaceClient, update_callback):
@@ -17,7 +19,7 @@ class ChatExporter:
         self.update_callback = update_callback
         self.stop_event = threading.Event()
 
-    def run(self, conversations, output_root=None):
+    def run(self, conversations, output_root=None, max_workers=MAX_WORKERS):
         if output_root is None:
             output_root = os.getcwd()
             
@@ -34,14 +36,14 @@ class ChatExporter:
             self.update_callback(idx, total_covs, f"正在处理会话: {cov_title}", (idx / total_covs) * 100)
             
             try:
-                self._export_conversation(cov, output_root)
+                self._export_conversation(cov, output_root, max_workers)
                 success_count += 1
             except Exception as e:
                 logging.error(f"导出会话 {cov_title} 失败: {e}")
                 
         return output_root, success_count
 
-    def _export_conversation(self, cov, output_root):
+    def _export_conversation(self, cov, output_root, max_workers=MAX_WORKERS):
         cov_id = cov.get("cov_id")
         cov_title = cov.get("cov_title") or str(cov_id)
         safe_title = safe_filename(cov_title)
@@ -57,19 +59,33 @@ class ChatExporter:
         messages.sort(key=lambda x: x.get("time", 0))
         
         # 处理消息中的卡片链接
-        processed_messages = []
+        processed_messages = [None] * len(messages)
         total_msgs = len(messages)
         
-        for i, msg in enumerate(messages):
-            if self.stop_event.is_set():
-                break
-                
-            # 简单的进度更新，每50条更新一次UI，避免过于频繁
-            if i % 50 == 0:
-                self.update_callback(-1, -1, f"正在处理消息 ({i}/{total_msgs}) - {cov_title}", -1)
-                
-            processed_msg = self._process_message(msg, cards_dir)
-            processed_messages.append(processed_msg)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            future_to_idx = {executor.submit(self._process_message, msg, cards_dir): i for i, msg in enumerate(messages)}
+            
+            completed_count = 0
+            for future in as_completed(future_to_idx):
+                if self.stop_event.is_set():
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
+                    
+                idx = future_to_idx[future]
+                try:
+                    result = future.result()
+                    processed_messages[idx] = result
+                except Exception as e:
+                    logging.error(f"处理消息出错: {e}")
+                    # Keep original message on error
+                    processed_messages[idx] = messages[idx]
+
+                completed_count += 1
+                if completed_count % 20 == 0:
+                     self.update_callback(-1, -1, f"正在处理消息 ({completed_count}/{total_msgs}) - {cov_title}", -1)
+        
+        # Filter out None if stopped early
+        processed_messages = [m for m in processed_messages if m is not None]
             
         # 生成文件
         self._generate_json(processed_messages, cov, cov_dir, safe_title)

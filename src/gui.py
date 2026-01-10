@@ -4,11 +4,12 @@ import threading
 import os
 import json
 import logging
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from .api_client import LLSpaceClient
 from .cards_exporter import CardsExporter
 from .chat_exporter import ChatExporter
 from .utils import format_timestamp
+from .config import MAX_WORKERS
 
 class App:
     def __init__(self, root):
@@ -384,27 +385,36 @@ class App:
 
     def _background_enrich_task(self):
         """后台线程：逐个获取好友详细信息并更新UI"""
-        updated = False
-        for cov in self.conversations:
+        updated_any = False
+
+        def fetch_info(cov):
             # 如果已经由于之前的操作有了信息，跳过
             if "friend_info" in cov:
                 # 即使有缓存，也要更新UI显示状态（从加载中->显示），防止UI重绘后状态丢失
                 self.root.after(0, lambda c=cov: self.update_chat_row_info(c))
-                continue
+                return False
                 
             user_id = cov.get("extras", {}).get("user_id")
             if user_id:
                 u_info = self.client.get_friend_info(user_id)
                 if u_info:
                     cov["friend_info"] = u_info
-                    updated = True
                     # 更新UI
                     self.root.after(0, lambda c=cov: self.update_chat_row_info(c))
-                    
-                    # 为了避免请求过快，稍微sleep一下? 或者直接跑
-                    # time.sleep(0.05) 
+                    return True
+            return False
+            
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = [executor.submit(fetch_info, cov) for cov in self.conversations]
+            
+            for future in as_completed(futures):
+                try:
+                    if future.result():
+                        updated_any = True
+                except Exception as e:
+                    logging.error(f"Failed to fetch friend info: {e}")
         
-        if updated:
+        if updated_any:
             self._save_conversations_cache()
 
 

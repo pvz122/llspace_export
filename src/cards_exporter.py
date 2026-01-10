@@ -3,10 +3,12 @@ import time
 import threading
 import logging
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from .utils import safe_filename, download_file
 from .api_client import LLSpaceClient
+from .config import MAX_WORKERS
 
 class CardsExporter:
     def __init__(self, client: LLSpaceClient, update_callback):
@@ -14,7 +16,7 @@ class CardsExporter:
         self.update_callback = update_callback
         self.stop_event = threading.Event()
 
-    def run(self, package, output_root=None):
+    def run(self, package, output_root=None, max_workers=MAX_WORKERS):
         pg_name = package.get("pg_name", "未知")
         pg_id = package.get("pg_id")
         safe_pg_name = safe_filename(pg_name)
@@ -40,72 +42,102 @@ class CardsExporter:
         
         exported_cards = []
         
-        for idx, card_entry in enumerate(cards_list):
-            if self.stop_event.is_set():
-                break
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+            for card_entry in cards_list:
+                futures.append(executor.submit(self._process_single_card, card_entry, pg_id, images_dir, media_dir, web_dir))
+            
+            for idx, future in enumerate(as_completed(futures)):
+                if self.stop_event.is_set():
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    break
                 
-            card_id = card_entry.get("id")
-            # 优先使用目录列表中的标题，稍后用详情更新
-            title = card_entry.get("data", {}).get("title", f"卡片 {card_id}")
-            
-            self.update_callback(idx + 1, total_cards, f"正在处理: {title}", (idx / total_cards) * 100)
-            
-            detail = self.client.get_card_detail(card_id, pg_id)
-            if not detail:
-                logging.warning(f"由于缺少详情，跳过卡片 {card_id}。")
-                continue
-                
-            # 提取数据 (适配不同卡片类型)
-            card_data_obj = detail.get("data", {})
-            card_share_obj = detail.get("share", {})
-            
-            card_title = detail.get("title") or card_data_obj.get("title") or title
-            created_date = detail.get("created_date") or card_data_obj.get("created_date") or ""
-            created_int = detail.get("created_int") or card_data_obj.get("created_int") or 0
-            description = detail.get("description") or card_data_obj.get("content") or card_data_obj.get("short_des") or ""
-            cover_url = detail.get("cover_url") or card_data_obj.get("cover_url") or ""
-            web_url = detail.get("url") or card_share_obj.get("share_url") or ""
-            sound_url = card_data_obj.get("sound_url") or ""
+                try:
+                    result = future.result()
+                    if result:
+                        exported_cards.append(result)
+                        self.update_callback(idx + 1, total_cards, f"已处理: {result['title']}", ((idx + 1) / total_cards) * 100)
+                    else:
+                        self.update_callback(idx + 1, total_cards, f"跳过无效卡片", ((idx + 1) / total_cards) * 100)
+                except Exception as e:
+                    logging.error(f"处理卡片时出错: {e}")
 
-            card_data = {
-                "title": card_title,
-                "created_date": created_date,
-                "created_int": created_int,
-                "description": description,
-                "cover_url": cover_url,
-                "url": web_url,
-                "sound_url": sound_url,
-                "id": card_id
-            }
+        # 按创建日期排序 (格式为 YYYY.MM.DD)
+        exported_cards.sort(key=lambda x: x["created_int"], reverse=True)
+        
+        # 生成 Markdown
+        md_path = os.path.join(base_dir, f"{safe_pg_name}.md")
+        self._generate_markdown(exported_cards, md_path, pg_name)
+        
+        # 生成索引 HTML
+        self._generate_index_html(exported_cards, base_dir, pg_name)
+        
+        return base_dir, len(exported_cards)
+
+    def _process_single_card(self, card_entry, pg_id, images_dir, media_dir, web_dir):
+        if self.stop_event.is_set():
+            return None
             
-            # 下载封面
-            if card_data["cover_url"]:
-                ext = os.path.splitext(urlparse(card_data["cover_url"]).path)[1] or ".jpg"
-                cover_filename = f"cover_{card_id}{ext}"
-                cover_path = os.path.join(images_dir, cover_filename)
-                download_file(card_data["cover_url"], cover_path)
-                card_data["local_cover"] = f"images/{cover_filename}"
-            else:
-                card_data["local_cover"] = None
+        card_id = card_entry.get("id")
+        # 优先使用目录列表中的标题，稍后用详情更新
+        title = card_entry.get("data", {}).get("title", f"卡片 {card_id}")
+        
+        detail = self.client.get_card_detail(card_id, pg_id)
+        if not detail:
+            logging.warning(f"由于缺少详情，跳过卡片 {card_id}。")
+            return None
+            
+        # 提取数据 (适配不同卡片类型)
+        card_data_obj = detail.get("data", {})
+        card_share_obj = detail.get("share", {})
+        
+        card_title = detail.get("title") or card_data_obj.get("title") or title
+        created_date = detail.get("created_date") or card_data_obj.get("created_date") or ""
+        created_int = detail.get("created_int") or card_data_obj.get("created_int") or 0
+        description = detail.get("description") or card_data_obj.get("content") or card_data_obj.get("short_des") or ""
+        cover_url = detail.get("cover_url") or card_data_obj.get("cover_url") or ""
+        web_url = detail.get("url") or card_share_obj.get("share_url") or ""
+        sound_url = card_data_obj.get("sound_url") or ""
 
-            # 下载音频
-            if card_data["sound_url"]:
-                ext = os.path.splitext(urlparse(card_data["sound_url"]).path)[1] or ".m4a"
-                sound_filename = f"audio_{card_id}{ext}"
-                sound_path = os.path.join(media_dir, sound_filename)
-                download_file(card_data["sound_url"], sound_path)
-                card_data["local_sound"] = f"media/{sound_filename}"
-            else:
-                card_data["local_sound"] = None
+        card_data = {
+            "title": card_title,
+            "created_date": created_date,
+            "created_int": created_int,
+            "description": description,
+            "cover_url": cover_url,
+            "url": web_url,
+            "sound_url": sound_url,
+            "id": card_id
+        }
+        
+        # 下载封面
+        if card_data["cover_url"]:
+            ext = os.path.splitext(urlparse(card_data["cover_url"]).path)[1] or ".jpg"
+            cover_filename = f"cover_{card_id}{ext}"
+            cover_path = os.path.join(images_dir, cover_filename)
+            download_file(card_data["cover_url"], cover_path)
+            card_data["local_cover"] = f"images/{cover_filename}"
+        else:
+            card_data["local_cover"] = None
 
-            # 处理网页快照
-            if card_data["url"]:
-                self._process_web_snapshot(card_data["url"], web_dir, card_id)
-                card_data["local_web"] = f"web/{card_id}.html"
-            else:
-                card_data["local_web"] = None
+        # 下载音频
+        if card_data["sound_url"]:
+            ext = os.path.splitext(urlparse(card_data["sound_url"]).path)[1] or ".m4a"
+            sound_filename = f"audio_{card_id}{ext}"
+            sound_path = os.path.join(media_dir, sound_filename)
+            download_file(card_data["sound_url"], sound_path)
+            card_data["local_sound"] = f"media/{sound_filename}"
+        else:
+            card_data["local_sound"] = None
 
-            exported_cards.append(card_data)
+        # 处理网页快照
+        if card_data["url"]:
+            self._process_web_snapshot(card_data["url"], web_dir, card_id)
+            card_data["local_web"] = f"web/{card_id}.html"
+        else:
+            card_data["local_web"] = None
+
+        return card_data
             
         # 按创建日期排序 (格式为 YYYY.MM.DD)
         exported_cards.sort(key=lambda x: x["created_int"], reverse=True)
