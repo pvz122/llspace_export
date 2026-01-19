@@ -23,6 +23,7 @@ class App:
         
         self.client = LLSpaceClient()
         self.packages = []
+        self.filtered_packages = []
         self.selected_pkg_ids = set()
         self.pkg_page = 1
 
@@ -54,7 +55,7 @@ class App:
         
         # --- 登录框架 ---
         self.login_frame = ttk.Frame(self.main_container)
-        self.root.geometry("400x300")
+        self.root.geometry("400x225")
         
         ttk.Label(self.login_frame, text="用户名:").pack(pady=5)
         self.username_var = tk.StringVar()
@@ -95,11 +96,22 @@ class App:
         ttk.Label(top_pkg_frame, text="选择要导出的卡包").pack(side=tk.LEFT, padx=20)
         ttk.Button(top_pkg_frame, text="刷新列表", command=self.refresh_packages).pack(side=tk.RIGHT)
         
-        # 全选复选框 (卡包)
+        # 全选复选框 (卡包) & 筛选工具栏
         self.pkg_select_all_var = tk.BooleanVar()
-        pkg_select_all_frame = ttk.Frame(self.pkg_export_frame)
-        pkg_select_all_frame.pack(fill=tk.X, pady=5)
-        ttk.Checkbutton(pkg_select_all_frame, text="全选", variable=self.pkg_select_all_var, command=self.toggle_pkg_select_all).pack(side=tk.LEFT)
+        pkg_tools_frame = ttk.Frame(self.pkg_export_frame)
+        pkg_tools_frame.pack(fill=tk.X, pady=5)
+        ttk.Checkbutton(pkg_tools_frame, text="全选", variable=self.pkg_select_all_var, command=self.toggle_pkg_select_all).pack(side=tk.LEFT)
+        
+        ttk.Separator(pkg_tools_frame, orient=tk.VERTICAL).pack(side=tk.LEFT, fill=tk.Y, padx=10)
+        
+        ttk.Label(pkg_tools_frame, text="筛选:").pack(side=tk.LEFT)
+        self.filter_pkg_normal = tk.BooleanVar(value=False)
+        self.filter_pkg_public = tk.BooleanVar(value=False)
+        self.filter_pkg_private = tk.BooleanVar(value=False)
+        
+        ttk.Checkbutton(pkg_tools_frame, text="仅普通", variable=self.filter_pkg_normal, command=self.apply_pkg_filters).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(pkg_tools_frame, text="仅公开", variable=self.filter_pkg_public, command=self.apply_pkg_filters).pack(side=tk.LEFT, padx=5)
+        ttk.Checkbutton(pkg_tools_frame, text="仅私密", variable=self.filter_pkg_private, command=self.apply_pkg_filters).pack(side=tk.LEFT, padx=5)
         
         # 卡包列表容器
         self.pkg_list_container = ttk.Frame(self.pkg_export_frame)
@@ -239,7 +251,7 @@ class App:
             self.login_frame.pack(fill=tk.BOTH, expand=True)
             self.username_var.set("")
             self.password_var.set("")
-            self.root.geometry("400x300")
+            self.root.geometry("400x225")
             
     def save_session(self):
         os.makedirs("cache", exist_ok=True)
@@ -268,13 +280,13 @@ class App:
     def show_package_export_view(self):
         self.hide_all_frames()
         self.pkg_export_frame.pack(fill=tk.BOTH, expand=True)
-        self.root.geometry("500x800")
+        self.root.geometry("500x810")
         
         if not self.packages:
             self.load_packages()
         else:
             # 如果已有数据，也刷新一下列表UI以防万一
-            self.create_package_list()
+            self.apply_pkg_filters()
 
     def load_packages(self):
         # 尝试从缓存加载
@@ -283,7 +295,7 @@ class App:
             try:
                 with open(cache_file, "r", encoding='utf-8') as f:
                     self.packages = json.load(f)
-                self.create_package_list()
+                self.apply_pkg_filters()
                 return
             except Exception as e:
                 logging.error(f"Failed to load cached packages: {e}")
@@ -306,7 +318,30 @@ class App:
                 json.dump(self.packages, f, ensure_ascii=False, indent=2)
         
         self.root.after(0, lambda: self.root.title("llspace 导出工具"))
-        self.root.after(0, self.create_package_list)
+        self.root.after(0, self.apply_pkg_filters)
+
+    def apply_pkg_filters(self):
+        filtered = []
+        only_normal = self.filter_pkg_normal.get()
+        only_public = self.filter_pkg_public.get()
+        only_private = self.filter_pkg_private.get()
+        
+        for item in self.packages:
+            category = item.get("category")
+            status = item.get("status")
+            
+            if only_normal and category != 1:
+                continue
+            if only_public and status != 1:
+                continue
+            if only_private and status != 2:
+                continue
+                
+            filtered.append(item)
+            
+        self.filtered_packages = filtered
+        self.pkg_page = 1
+        self.create_package_list()
 
     def create_package_list(self):
         container = self.pkg_list_container
@@ -357,7 +392,7 @@ class App:
         # Pagination slicing
         start_idx = (self.pkg_page - 1) * PKG_PER_PAGE
         end_idx = start_idx + PKG_PER_PAGE
-        page_items = self.packages[start_idx:end_idx]
+        page_items = self.filtered_packages[start_idx:end_idx]
         
         for item in page_items:
             item_id = item.get("pg_id")
@@ -417,7 +452,7 @@ class App:
         self.render_pagination(
             self.pkg_pagination_frame, 
             self.pkg_page, 
-            len(self.packages), 
+            len(self.filtered_packages), 
             lambda p: self._change_pkg_page(p),
             PKG_PER_PAGE
         )
@@ -427,11 +462,11 @@ class App:
         self.create_package_list()
 
     def toggle_pkg_select_all(self):
+        target_ids = {p['pg_id'] for p in self.filtered_packages}
         if self.pkg_select_all_var.get():
-            for p in self.packages:
-                self.selected_pkg_ids.add(p['pg_id'])
+            self.selected_pkg_ids.update(target_ids)
         else:
-            self.selected_pkg_ids.clear()
+            self.selected_pkg_ids.difference_update(target_ids)
         self.create_package_list()
 
     def start_pkg_export(self):
