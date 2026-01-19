@@ -4,12 +4,17 @@ import threading
 import os
 import json
 import logging
+import math
+import queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .api_client import LLSpaceClient
 from .cards_exporter import CardsExporter
 from .chat_exporter import ChatExporter
 from .utils import format_timestamp
 from .config import MAX_WORKERS
+
+PKG_PER_PAGE = 12
+CHAT_PER_PAGE = 23
 
 class App:
     def __init__(self, root):
@@ -18,16 +23,31 @@ class App:
         
         self.client = LLSpaceClient()
         self.packages = []
-        self.package_vars = {}
+        self.selected_pkg_ids = set()
+        self.pkg_page = 1
+
         self.conversations = []
-        self.conversation_vars = {}
+        self.filtered_conversations = []
+        self.selected_chat_ids = set()
+        self.chat_page = 1
         
+        self.ui_queue = queue.Queue()
         self.setup_ui()
         self.check_auto_login()
+        self.process_ui_queue()
         
         # 聊天列表相关的UI应用缓存引用
         self.chat_row_widgets = {} # cov_id -> {label references}
         
+    def process_ui_queue(self):
+        try:
+            while True:
+                task = self.ui_queue.get_nowait()
+                task()
+        except queue.Empty:
+            pass
+        self.root.after(100, self.process_ui_queue)
+
     def setup_ui(self):
         self.main_container = ttk.Frame(self.root, padding="10")
         self.main_container.pack(fill=tk.BOTH, expand=True)
@@ -84,6 +104,10 @@ class App:
         self.pkg_list_container = ttk.Frame(self.pkg_export_frame)
         self.pkg_list_container.pack(fill=tk.BOTH, expand=True, pady=5)
         
+        # 分页控件 (卡包)
+        self.pkg_pagination_frame = ttk.Frame(self.pkg_export_frame)
+        self.pkg_pagination_frame.pack(fill=tk.X, pady=2)
+
         # 导出路径选择 (卡包)
         pkg_path_frame = ttk.Frame(self.pkg_export_frame)
         pkg_path_frame.pack(fill=tk.X, pady=5)
@@ -121,6 +145,10 @@ class App:
         ttk.Checkbutton(tools_frame, text="仅显示已关注", variable=self.filter_only_follow, command=self.apply_chat_filters).pack(side=tk.LEFT, padx=5)
         ttk.Checkbutton(tools_frame, text="仅显示居民", variable=self.filter_only_resident, command=self.apply_chat_filters).pack(side=tk.LEFT, padx=5)
         
+        # 分页控件 (聊天)
+        self.chat_pagination_frame = ttk.Frame(self.chat_export_frame)
+        self.chat_pagination_frame.pack(fill=tk.X, pady=2)
+
         # 聊天列表容器
         self.chat_list_container = ttk.Frame(self.chat_export_frame)
         self.chat_list_container.pack(fill=tk.BOTH, expand=True, pady=5)
@@ -198,6 +226,9 @@ class App:
                 except Exception as e:
                     logging.error(f"Failed to remove session file: {e}")
             
+            self.filtered_conversations = []
+            self.selected_pkg_ids.clear()
+            self.selected_chat_ids.clear()
             self.client.token = None
             self.client.user_info = {}
             self.packages = []
@@ -277,13 +308,42 @@ class App:
         self.root.after(0, self.create_package_list)
 
     def create_package_list(self):
-        self._create_list_ui(self.pkg_list_container, self.packages, self.package_vars, "pg_id", "pg_name")
+        # Pagination slicing
+        start_idx = (self.pkg_page - 1) * PKG_PER_PAGE
+        end_idx = start_idx + PKG_PER_PAGE
+        page_items = self.packages[start_idx:end_idx]
+        
+        self._render_list_items(
+            self.pkg_list_container, 
+            page_items, 
+            "pg_id", 
+            "pg_name", 
+            self.selected_pkg_ids,
+            lambda item_id, val: self._on_selection_change(self.selected_pkg_ids, item_id, val)
+        )
+        
+        self.render_pagination(
+            self.pkg_pagination_frame, 
+            self.pkg_page, 
+            len(self.packages), 
+            lambda p: self._change_pkg_page(p),
+            PKG_PER_PAGE
+        )
+
+    def _change_pkg_page(self, p):
+        self.pkg_page = p
+        self.create_package_list()
 
     def toggle_pkg_select_all(self):
-        self._toggle_select_all(self.pkg_select_all_var, self.package_vars)
+        if self.pkg_select_all_var.get():
+            for p in self.packages:
+                self.selected_pkg_ids.add(p['pg_id'])
+        else:
+            self.selected_pkg_ids.clear()
+        self.create_package_list()
 
     def start_pkg_export(self):
-        selected_packages = [p for p in self.packages if self.package_vars[p['pg_id']].get()]
+        selected_packages = [p for p in self.packages if p['pg_id'] in self.selected_pkg_ids]
         
         if not selected_packages:
             messagebox.showwarning("提示", "请至少选择一个卡包")
@@ -331,7 +391,7 @@ class App:
         if not self.conversations:
             self.load_conversations()
         else:
-            self.create_chat_list()
+            self.apply_chat_filters() # Initialize view with filters
 
     def load_conversations(self):
         # 尝试从缓存加载
@@ -340,7 +400,7 @@ class App:
             try:
                 with open(cache_file, "r", encoding='utf-8') as f:
                     self.conversations = json.load(f)
-                self.create_chat_list()
+                self.apply_chat_filters()
                 return
             except Exception as e:
                 logging.error(f"Failed to load cached conversations: {e}")
@@ -377,7 +437,7 @@ class App:
         self._save_conversations_cache()
             
         self.root.after(0, lambda: self.root.title("llspace 导出工具"))
-        self.root.after(0, self.create_chat_list)
+        self.root.after(0, self.apply_chat_filters)
         
         # 启动后台丰富信息线程
         threading.Thread(target=self._background_enrich_task, daemon=True).start()
@@ -395,7 +455,7 @@ class App:
             # 如果已经由于之前的操作有了信息，跳过
             if "friend_info" in cov:
                 # 即使有缓存，也要更新UI显示状态（从加载中->显示），防止UI重绘后状态丢失
-                self.root.after(0, lambda c=cov: self.update_chat_row_info(c))
+                self.ui_queue.put(lambda c=cov: self.update_chat_row_info(c))
                 return False
                 
             user_id = cov.get("extras", {}).get("user_id")
@@ -404,7 +464,7 @@ class App:
                 if u_info:
                     cov["friend_info"] = u_info
                     # 更新UI
-                    self.root.after(0, lambda c=cov: self.update_chat_row_info(c))
+                    self.ui_queue.put(lambda c=cov: self.update_chat_row_info(c))
                     return True
             return False
             
@@ -423,6 +483,25 @@ class App:
 
 
     def apply_chat_filters(self):
+        filtered = []
+        only_follow = self.filter_only_follow.get()
+        only_resident = self.filter_only_resident.get()
+        
+        for item in self.conversations:
+            has_friend_info = "friend_info" in item
+            friend_info = item.get("friend_info", {})
+            
+            is_followed = friend_info.get("hasFollow", False) if has_friend_info else False
+            is_resident = (friend_info.get("premium", {}).get("premium_status", 0) != 0) if has_friend_info else False
+            
+            if only_follow and not is_followed:
+                continue
+            if only_resident and not is_resident:
+                continue
+            filtered.append(item)
+            
+        self.filtered_conversations = filtered
+        self.chat_page = 1
         self.create_chat_list()
 
     def create_chat_list(self):
@@ -452,15 +531,11 @@ class App:
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
         
-        self.conversation_vars.clear()
         self.chat_row_widgets.clear()
         
         # 表头
         header_frame = ttk.Frame(scrollable_frame)
         header_frame.pack(fill="x", pady=2)
-        
-        # 使用 grid weight 来分配宽度，或者固定宽度但居中
-        # 简单起见，这里手动调整sticky和column configure
         
         header_configs = [
             (0, "", 3, "w"),
@@ -476,31 +551,31 @@ class App:
 
         ttk.Separator(scrollable_frame, orient='horizontal').pack(fill='x', pady=5)
         
-        for item in self.conversations:
-            # 过滤逻辑
-            has_friend_info = "friend_info" in item
-            friend_info = item.get("friend_info", {})
-            
-            is_followed = friend_info.get("hasFollow", False) if has_friend_info else False
-            is_resident = (friend_info.get("premium", {}).get("premium_status", 0) != 0) if has_friend_info else False
-            
-            if self.filter_only_follow.get() and not is_followed:
-                continue
-            if self.filter_only_resident.get() and not is_resident:
-                continue
+        # Pagination Slice
+        start_idx = (self.chat_page - 1) * CHAT_PER_PAGE
+        end_idx = start_idx + CHAT_PER_PAGE
+        page_items = self.filtered_conversations[start_idx:end_idx]
 
+        for item in page_items:
             item_id = item.get("cov_id")
             cov_title = item.get("cov_title", "未命名")
             ts = item.get("last_date_at")
             time_str = format_timestamp(ts) if ts else ""
             
+            has_friend_info = "friend_info" in item
+            friend_info = item.get("friend_info", {})
+            is_followed = friend_info.get("hasFollow", False) if has_friend_info else False
+            is_resident = (friend_info.get("premium", {}).get("premium_status", 0) != 0) if has_friend_info else False
+
             item_frame = ttk.Frame(scrollable_frame)
             item_frame.pack(fill="x", pady=2)
             
             # Checkbox
-            var = tk.BooleanVar()
-            self.conversation_vars[item_id] = var
-            chk = ttk.Checkbutton(item_frame, variable=var)
+            var = tk.BooleanVar(value=item_id in self.selected_chat_ids)
+            def _cb(v=var, i=item_id):
+                self._on_selection_change(self.selected_chat_ids, i, v.get())
+            
+            chk = ttk.Checkbutton(item_frame, variable=var, command=_cb)
             chk.grid(row=0, column=0, padx=(0, 5))
             
             # Name
@@ -509,10 +584,8 @@ class App:
             # Time
             ttk.Label(item_frame, text=time_str, width=16, font=("Arial", 11), anchor="center").grid(row=0, column=2, sticky="ew")
             
-            # Status Widgets references
+            # Status Widgets
             follow_text = "已关注" if is_followed else ""
-            # 如果还没加载信息，且不确定（虽然过滤时如果只选已关注，那肯定已加载或者默认False）
-            # 这里如果不确定显示状态，默认显示为空，等加载
             if not has_friend_info:
                 follow_text = "..."
                 
@@ -531,6 +604,18 @@ class App:
                 "resident_label": res_lbl
             }
 
+        self.render_pagination(
+            self.chat_pagination_frame, 
+            self.chat_page, 
+            len(self.filtered_conversations), 
+            lambda p: self._change_chat_page(p),
+            CHAT_PER_PAGE
+        )
+
+    def _change_chat_page(self, p):
+        self.chat_page = p
+        self.create_chat_list()
+
     def update_chat_row_info(self, item):
         item_id = item.get("cov_id")
         if item_id not in self.chat_row_widgets:
@@ -546,10 +631,15 @@ class App:
         widgets["resident_label"].config(text="居民" if is_resident else "")
 
     def toggle_chat_select_all(self):
-        self._toggle_select_all(self.chat_select_all_var, self.conversation_vars)
+        target_ids = {c['cov_id'] for c in self.filtered_conversations}
+        if self.chat_select_all_var.get():
+            self.selected_chat_ids.update(target_ids)
+        else:
+            self.selected_chat_ids.difference_update(target_ids)
+        self.create_chat_list()
 
     def start_chat_export(self):
-        selected_covs = [c for c in self.conversations if self.conversation_vars[c['cov_id']].get()]
+        selected_covs = [c for c in self.conversations if c['cov_id'] in self.selected_chat_ids]
         
         if not selected_covs:
             messagebox.showwarning("提示", "请至少选择一个对话")
@@ -595,7 +685,7 @@ class App:
         if path:
             var.set(path)
 
-    def _create_list_ui(self, container, items, vars_dict, id_key, name_key_or_func):
+    def _render_list_items(self, container, items, id_key, name_key_or_func, selection_set, on_toggle):
         # 清除旧内容
         for widget in container.winfo_children():
             widget.destroy()
@@ -621,8 +711,6 @@ class App:
             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
         
-        vars_dict.clear()
-        
         for item in items:
             item_id = item.get(id_key)
             if callable(name_key_or_func):
@@ -634,18 +722,47 @@ class App:
             item_frame.pack(fill="x", pady=5, padx=5)
             
             # Checkbox
-            var = tk.BooleanVar()
-            vars_dict[item_id] = var
-            chk = ttk.Checkbutton(item_frame, variable=var)
+            var = tk.BooleanVar(value=item_id in selection_set)
+            def _cb(v=var, i=item_id):
+                on_toggle(i, v.get())
+            
+            chk = ttk.Checkbutton(item_frame, variable=var, command=_cb)
             chk.pack(side="left")
             
             # Name Label
             ttk.Label(item_frame, text=item_name, font=("Arial", 12)).pack(side="left", padx=5)
 
-    def _toggle_select_all(self, master_var, vars_dict):
-        select_all = master_var.get()
-        for var in vars_dict.values():
-            var.set(select_all)
+    def _on_selection_change(self, s_set, item_id, is_selected):
+        if is_selected:
+            s_set.add(item_id)
+        else:
+            s_set.discard(item_id)
+
+    def render_pagination(self, parent, current_page, total_items, page_callback, ITEMS_PER_PAGE):
+        for w in parent.winfo_children():
+            w.destroy()
+            
+        if total_items == 0:
+            return
+
+        total_pages = math.ceil(total_items / ITEMS_PER_PAGE)
+        if total_pages <= 1:
+            return
+
+        frame = ttk.Frame(parent)
+        frame.pack(anchor=tk.CENTER)
+
+        def go_page(p):
+            if 1 <= p <= total_pages:
+                page_callback(p)
+
+        ttk.Button(frame, text="<<", width=3, command=lambda: go_page(1), state=tk.NORMAL if current_page > 1 else tk.DISABLED).pack(side=tk.LEFT, padx=2)
+        ttk.Button(frame, text="<", width=3, command=lambda: go_page(current_page - 1), state=tk.NORMAL if current_page > 1 else tk.DISABLED).pack(side=tk.LEFT, padx=2)
+        
+        ttk.Label(frame, text=f"第 {current_page} / {total_pages} 页").pack(side=tk.LEFT, padx=10)
+        
+        ttk.Button(frame, text=">", width=3, command=lambda: go_page(current_page + 1), state=tk.NORMAL if current_page < total_pages else tk.DISABLED).pack(side=tk.LEFT, padx=2)
+        ttk.Button(frame, text=">>", width=3, command=lambda: go_page(total_pages), state=tk.NORMAL if current_page < total_pages else tk.DISABLED).pack(side=tk.LEFT, padx=2)
 
     def update_main_progress(self, percent, message):
         self.main_progress_var.set(percent)
