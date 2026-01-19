@@ -13,7 +13,7 @@ from .chat_exporter import ChatExporter
 from .utils import format_timestamp
 from .config import MAX_WORKERS
 
-PKG_PER_PAGE = 19
+PKG_PER_PAGE = 23
 CHAT_PER_PAGE = 23
 
 class App:
@@ -54,6 +54,7 @@ class App:
         
         # --- 登录框架 ---
         self.login_frame = ttk.Frame(self.main_container)
+        self.root.geometry("400x300")
         
         ttk.Label(self.login_frame, text="用户名:").pack(pady=5)
         self.username_var = tk.StringVar()
@@ -238,7 +239,7 @@ class App:
             self.login_frame.pack(fill=tk.BOTH, expand=True)
             self.username_var.set("")
             self.password_var.set("")
-            self.root.geometry("")
+            self.root.geometry("400x300")
             
     def save_session(self):
         os.makedirs("cache", exist_ok=True)
@@ -267,7 +268,7 @@ class App:
     def show_package_export_view(self):
         self.hide_all_frames()
         self.pkg_export_frame.pack(fill=tk.BOTH, expand=True)
-        self.root.geometry("400x800")
+        self.root.geometry("500x800")
         
         if not self.packages:
             self.load_packages()
@@ -308,19 +309,110 @@ class App:
         self.root.after(0, self.create_package_list)
 
     def create_package_list(self):
+        container = self.pkg_list_container
+        # 清除旧内容
+        for widget in container.winfo_children():
+            widget.destroy()
+            
+        # Canvas and Scrollbar
+        canvas = tk.Canvas(container)
+        scrollbar = ttk.Scrollbar(container, orient="vertical", command=canvas.yview)
+        scrollable_frame = ttk.Frame(canvas)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # 绑定鼠标滚轮
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        # 表头
+        header_frame = ttk.Frame(scrollable_frame)
+        header_frame.pack(fill="x", pady=2)
+        
+        headers = [
+            (0, "", 3, "w"),
+            (1, "卡包名称", 20, "w"),
+            (2, "类型", 6, "center"),
+            (3, "状态", 6, "center"),
+            (4, "卡片数", 6, "center"),
+            (5, "描述", 25, "w")
+        ]
+        
+        for col, text, width, anchor in headers:
+            lbl = ttk.Label(header_frame, text=text, width=width, font=("Arial", 12, "bold"), anchor=anchor)
+            lbl.grid(row=0, column=col, sticky="ew")
+
+        ttk.Separator(scrollable_frame, orient='horizontal').pack(fill='x', pady=5)
+
         # Pagination slicing
         start_idx = (self.pkg_page - 1) * PKG_PER_PAGE
         end_idx = start_idx + PKG_PER_PAGE
         page_items = self.packages[start_idx:end_idx]
         
-        self._render_list_items(
-            self.pkg_list_container, 
-            page_items, 
-            "pg_id", 
-            "pg_name", 
-            self.selected_pkg_ids,
-            lambda item_id, val: self._on_selection_change(self.selected_pkg_ids, item_id, val)
-        )
+        for item in page_items:
+            item_id = item.get("pg_id")
+            pg_name = item.get("pg_name", "未命名")
+            category_val = item.get("category")
+            status_val = item.get("status")
+            c_num = item.get("c_num", 0)
+            desc_raw = item.get("text", "") or ""
+            desc = desc_raw.replace('\n', ' ')
+            if len(desc) > 20:
+                desc = desc[:20] + "..."
+            
+            # Map category
+            if category_val == 1:
+                cat_str = "普通卡包"
+            elif category_val == 20:
+                cat_str = "沙龙包"
+            elif category_val == 9:
+                cat_str = "召唤包"
+            else:
+                cat_str = "其它"
+                
+            # Map status
+            if status_val == 1:
+                status_str = "公开"
+            elif status_val == 2:
+                status_str = "私密"
+            else:
+                status_str = str(status_val)
+
+            item_frame = ttk.Frame(scrollable_frame)
+            item_frame.pack(fill="x", pady=2)
+            
+            # Checkbox
+            var = tk.BooleanVar(value=item_id in self.selected_pkg_ids)
+            def _cb(v=var, i=item_id):
+                self._on_selection_change(self.selected_pkg_ids, i, v.get())
+            
+            chk = ttk.Checkbutton(item_frame, variable=var, command=_cb)
+            chk.grid(row=0, column=0, padx=(0, 5))
+            
+            # Name
+            ttk.Label(item_frame, text=pg_name, width=20, font=("Arial", 12), anchor="w").grid(row=0, column=1, sticky="w")
+            
+            # Type
+            ttk.Label(item_frame, text=cat_str, width=10, font=("Arial", 10), anchor="center").grid(row=0, column=2, sticky="ew")
+            
+            # Status
+            ttk.Label(item_frame, text=status_str, width=6, font=("Arial", 10), anchor="center").grid(row=0, column=3, sticky="ew")
+            
+            # Count
+            ttk.Label(item_frame, text=str(c_num), width=6, font=("Arial", 10), anchor="center").grid(row=0, column=4, sticky="ew")
+
+            # Description
+            ttk.Label(item_frame, text=desc, width=25, font=("Arial", 10), anchor="w").grid(row=0, column=5, sticky="w")
         
         self.render_pagination(
             self.pkg_pagination_frame, 
