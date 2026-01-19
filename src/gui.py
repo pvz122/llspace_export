@@ -13,7 +13,7 @@ from .chat_exporter import ChatExporter
 from .utils import format_timestamp
 from .config import MAX_WORKERS
 
-PKG_PER_PAGE = 12
+PKG_PER_PAGE = 19
 CHAT_PER_PAGE = 23
 
 class App:
