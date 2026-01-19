@@ -386,7 +386,7 @@ class App:
     def show_chat_export_view(self):
         self.hide_all_frames()
         self.chat_export_frame.pack(fill=tk.BOTH, expand=True)
-        self.root.geometry("470x800")
+        self.root.geometry("470x810")
         
         if not self.conversations:
             self.load_conversations()
@@ -492,7 +492,7 @@ class App:
             friend_info = item.get("friend_info", {})
             
             is_followed = friend_info.get("hasFollow", False) if has_friend_info else False
-            is_resident = (friend_info.get("premium", {}).get("premium_status", 0) != 0) if has_friend_info else False
+            is_resident = (friend_info.get("premium", {}).get("premium_status", 0) == 1) if has_friend_info else False
             
             if only_follow and not is_followed:
                 continue
@@ -565,7 +565,7 @@ class App:
             has_friend_info = "friend_info" in item
             friend_info = item.get("friend_info", {})
             is_followed = friend_info.get("hasFollow", False) if has_friend_info else False
-            is_resident = (friend_info.get("premium", {}).get("premium_status", 0) != 0) if has_friend_info else False
+            resident_status = (friend_info.get("premium", {}).get("premium_status", 0)) if has_friend_info else False
 
             item_frame = ttk.Frame(scrollable_frame)
             item_frame.pack(fill="x", pady=2)
@@ -592,9 +592,17 @@ class App:
             follow_lbl = ttk.Label(item_frame, text=follow_text, width=10, font=("Arial", 10), anchor="center")
             follow_lbl.grid(row=0, column=3, sticky="ew")
             
-            resident_text = "居民" if is_resident else ""
             if not has_friend_info:
                 resident_text = "..."
+            elif resident_status == 0:
+                resident_text = "已注销"
+            elif resident_status == 1:
+                resident_text = "居民"
+            elif resident_status == 2:
+                resident_text = "非居民"
+            else:
+                logging.warning(f"Unknown resident status: {resident_status} for cov_id: {item_id}")
+                resident_text = ""
                 
             res_lbl = ttk.Label(item_frame, text=resident_text, width=10, font=("Arial", 10), anchor="center")
             res_lbl.grid(row=0, column=4, sticky="ew")
@@ -625,10 +633,18 @@ class App:
         friend_info = item.get("friend_info", {})
         
         is_followed = friend_info.get("hasFollow", False)
-        is_resident = friend_info.get("premium", {}).get("premium_status", 0) != 0
+        resident_status = friend_info.get("premium", {}).get("premium_status", 0)
         
         widgets["follow_label"].config(text="已关注" if is_followed else "")
-        widgets["resident_label"].config(text="居民" if is_resident else "")
+        if resident_status == 0:
+            res_text = "已注销"
+        elif resident_status == 1:
+            res_text = "居民"
+        elif resident_status == 2:
+            res_text = "非居民"
+        else:
+            res_text = ""
+        widgets["resident_label"].config(text=res_text)
 
     def toggle_chat_select_all(self):
         target_ids = {c['cov_id'] for c in self.filtered_conversations}
