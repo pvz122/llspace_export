@@ -4,7 +4,6 @@ import tkinter as tk
 import logging
 from src.config import LOG_FILE
 from src.gui import App
-from platformdirs import user_downloads_dir
 
 def setup_logging():
     logging.basicConfig(
@@ -35,8 +34,17 @@ def fix_macos_tk():
         except Exception as e:
             print(f"警告: 设置 Tcl/Tk 路径失败: {e}")
 
+def set_default_dir():
+    if sys.platform == 'darwin':
+        # For macOS, the app is sandboxed and is in a separate container.
+        # We set the default directory to Downloads.
+        os.chdir(os.path.expanduser("~/Downloads"))
+    else:
+        # For other OSes, set to the script's directory
+        os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
 def main():
-    os.chdir(user_downloads_dir())
+    set_default_dir()
     setup_logging()
     fix_macos_tk()
     
